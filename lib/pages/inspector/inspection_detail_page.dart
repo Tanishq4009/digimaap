@@ -83,7 +83,7 @@ class InspectionDetailPage extends StatelessWidget {
                     children: [
                       InfoGridItem(
                         label: 'Applicant',
-                        value: 'Aryan',
+                        value: item.applicant,
                       ),
                       InfoGridItem(
                         label: 'Instrument',

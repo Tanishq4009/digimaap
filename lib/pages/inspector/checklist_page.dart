@@ -2,18 +2,14 @@ import 'package:flutter/material.dart';
 import '../../theme/colors.dart';
 import '../../widgets/common.dart';
 import '../../models/data.dart';
-import 'seal_capture_page.dart';
+import 'mpe_calculator_page.dart';
 
 class ChecklistPage extends StatefulWidget {
   final String inspectionId;
-  const ChecklistPage({
-    super.key,
-    required this.inspectionId,
-  });
+  const ChecklistPage({super.key, required this.inspectionId});
 
   @override
-  State<ChecklistPage> createState() =>
-      _ChecklistPageState();
+  State<ChecklistPage> createState() => _ChecklistPageState();
 }
 
 class _ChecklistPageState extends State<ChecklistPage> {
@@ -27,12 +23,7 @@ class _ChecklistPageState extends State<ChecklistPage> {
     'Tamper indicators intact',
   ];
 
-  final Map<int, String> values = {
-    0: 'PASS',
-    1: 'PASS',
-    2: 'PASS',
-    3: 'PASS',
-  };
+  final Map<int, String> values = {0: 'PASS', 1: 'PASS', 2: 'PASS', 3: 'PASS'};
 
   @override
   Widget build(BuildContext context) {
@@ -55,12 +46,10 @@ class _ChecklistPageState extends State<ChecklistPage> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: Text(
@@ -85,18 +74,14 @@ class _ChecklistPageState extends State<ChecklistPage> {
                   ),
                   const SizedBox(height: 10),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(
-                      999,
-                    ),
+                    borderRadius: BorderRadius.circular(999),
                     child: LinearProgressIndicator(
                       value: values.length / 7,
                       minHeight: 6,
-                      backgroundColor: Colors.white
-                          .withValues(alpha: 0.2),
-                      valueColor:
-                          const AlwaysStoppedAnimation(
-                            AppColors.saffron,
-                          ),
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      valueColor: const AlwaysStoppedAnimation(
+                        AppColors.saffron,
+                      ),
                     ),
                   ),
                 ],
@@ -107,9 +92,7 @@ class _ChecklistPageState extends State<ChecklistPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: values[i] == 'FAIL'
-                      ? AppColors.red50
-                      : Colors.white,
+                  color: values[i] == 'FAIL' ? AppColors.red50 : Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: values[i] == 'FAIL'
@@ -118,8 +101,7 @@ class _ChecklistPageState extends State<ChecklistPage> {
                   ),
                 ),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       fields[i],
@@ -131,9 +113,7 @@ class _ChecklistPageState extends State<ChecklistPage> {
                     ),
                     const SizedBox(height: 12),
                     Row(
-                      children: ['PASS', 'FAIL', 'N/A'].map((
-                        status,
-                      ) {
+                      children: ['PASS', 'FAIL', 'N/A'].map((status) {
                         final active = values[i] == status;
                         final Color bg = active
                             ? (status == 'FAIL'
@@ -145,35 +125,23 @@ class _ChecklistPageState extends State<ChecklistPage> {
                             : AppColors.slate;
                         return Expanded(
                           child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(
-                                  horizontal: 3,
-                                ),
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
                             child: Material(
                               color: bg,
-                              borderRadius:
-                                  BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(8),
                               child: InkWell(
-                                borderRadius:
-                                    BorderRadius.circular(
-                                      8,
-                                    ),
-                                onTap: () => setState(
-                                  () => values[i] = status,
-                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => setState(() => values[i] = status),
                                 child: Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                        vertical: 8,
-                                      ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
                                   child: Text(
                                     status,
-                                    textAlign:
-                                        TextAlign.center,
+                                    textAlign: TextAlign.center,
                                     style: TextStyle(
                                       color: fg,
-                                      fontWeight:
-                                          FontWeight.w800,
+                                      fontWeight: FontWeight.w800,
                                       fontSize: 10,
                                     ),
                                   ),
@@ -190,22 +158,21 @@ class _ChecklistPageState extends State<ChecklistPage> {
               const SizedBox(height: 12),
             ],
             PrimaryButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => SealCapturePage(
-                      inspectionId: item.id,
-                    ),
-                  ),
-                );
-              },
+              onPressed: failed
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              MpeCalculatorPage(inspectionId: item.id),
+                        ),
+                      );
+                    },
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    failed
-                        ? 'Review deficiency'
-                        : 'Continue to seal evidence',
+                    failed ? 'Resolve failures first' : 'Continue to MPE Check',
                   ),
                   const SizedBox(width: 8),
                   const Icon(Icons.arrow_forward),

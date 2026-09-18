@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  biometric_signature
   connectivity_plus
   file_selector_windows
   geolocator_windows
