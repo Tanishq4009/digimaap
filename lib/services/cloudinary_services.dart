@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 /// Uploads seal-evidence photos to Cloudinary and returns the public
@@ -33,15 +34,13 @@ class CloudinaryService {
             jsonDecode(result) as Map<String, dynamic>;
         return jsonResponse['secure_url'] as String?;
       } else {
-        // ignore: avoid_print
-        print(
+        debugPrint(
           'Cloudinary upload failed (${response.statusCode}): $result',
         );
         return null;
       }
     } catch (e) {
-      // ignore: avoid_print
-      print('Error uploading to Cloudinary: $e');
+      debugPrint('Error uploading to Cloudinary: $e');
       return null;
     }
   }
