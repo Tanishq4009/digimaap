@@ -46,7 +46,7 @@ class SocketService {
     }
 
     socket = i_o.io(
-      'https://emaap-web-portal.onrender.com',
+      'http://192.168.1.4:8008',
       i_o.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()

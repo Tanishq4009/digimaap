@@ -3,6 +3,7 @@ import '../../theme/colors.dart';
 import '../../widgets/common.dart';
 import '../../models/data.dart';
 import 'mpe_calculator_page.dart';
+import 'defect_capture_page.dart';
 
 class ChecklistPage extends StatefulWidget {
   final String inspectionId;
@@ -24,6 +25,15 @@ class _ChecklistPageState extends State<ChecklistPage> {
   ];
 
   final Map<int, String> values = {0: 'PASS', 1: 'PASS', 2: 'PASS', 3: 'PASS'};
+  final Map<int, TextEditingController> defectRemarks = {};
+
+  @override
+  void dispose() {
+    for (var controller in defectRemarks.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +141,18 @@ class _ChecklistPageState extends State<ChecklistPage> {
                               borderRadius: BorderRadius.circular(8),
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(8),
-                                onTap: () => setState(() => values[i] = status),
+                                onTap: () {
+                                  setState(() {
+                                    values[i] = status;
+                                    if (status != 'FAIL') {
+                                      defectRemarks[i]?.dispose();
+                                      defectRemarks.remove(i);
+                                    } else {
+                                      defectRemarks[i] =
+                                          TextEditingController();
+                                    }
+                                  });
+                                },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 8,
@@ -152,30 +173,93 @@ class _ChecklistPageState extends State<ChecklistPage> {
                         );
                       }).toList(),
                     ),
+                    if (values[i] == 'FAIL') ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Specific Remarks',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.errorRed,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: defectRemarks[i],
+                        maxLines: 2,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.ink,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Describe the issue...',
+                          hintStyle: const TextStyle(
+                            color: AppColors.slate,
+                            fontSize: 13,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.all(12),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: AppColors.red200,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: AppColors.errorRed,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(height: 12),
             ],
             PrimaryButton(
-              onPressed: failed
-                  ? null
-                  : () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              MpeCalculatorPage(inspectionId: item.id),
-                        ),
-                      );
-                    },
+              onPressed: () {
+                if (failed) {
+                  // Collect failed fields
+                  final failedFields = values.entries
+                      .where((e) => e.value == 'FAIL')
+                      .map((e) => fields[e.key])
+                      .toList();
+
+                  // Navigate to Defect Capture Module
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => DefectCapturePage(
+                        inspectionId: item.id,
+                        failedFields: failedFields,
+                      ),
+                    ),
+                  );
+                } else {
+                  // Normal MPE flow
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => MpeCalculatorPage(inspectionId: item.id),
+                    ),
+                  );
+                }
+              },
+              // For failures we change button text to make it obvious
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    failed ? 'Resolve failures first' : 'Continue to MPE Check',
+                    failed
+                        ? 'Log Defect & Capture Evidence'
+                        : 'Continue to MPE Check',
                   ),
                   const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward),
+                  Icon(
+                    failed ? Icons.warning_amber_rounded : Icons.arrow_forward,
+                  ),
                 ],
               ),
             ),

@@ -488,7 +488,8 @@ class _SealCapturePageState extends State<SealCapturePage> {
       'instrumentSerialNumber': item.serial,
       'lat': _latitude ?? 0.0,
       'long': _longitude ?? 0.0,
-      'sealImageUrl': cloudUrl, 
+      'sealImageUrls': cloudUrl, 
+      'status': 'APPROVED_CHECKLIST'
     };
 
     saveSealEvidence(
