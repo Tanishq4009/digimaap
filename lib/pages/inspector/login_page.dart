@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/colors.dart';
 import '../../widgets/common.dart';
 import '../../routes.dart';
-import 'biometric_enrollment_screen.dart';
+import '../../services/lmo_auth_service.dart';
 
 class InspectorLoginPage extends StatefulWidget {
   const InspectorLoginPage({super.key});
@@ -115,20 +114,22 @@ class _InspectorLoginPageState extends State<InspectorLoginPage> {
             const SizedBox(height: 24),
             PrimaryButton(
               onPressed: () async {
-                final prefs = await SharedPreferences.getInstance();
-                final isRegistered =
-                    prefs.getBool('isBiometricRegistered') ?? false;
+                final authService = LmoAuthService();
+                final success = await authService.handlePostLoginEnrollment();
 
                 if (!mounted) return;
 
-                if (isRegistered) {
+                if (success) {
                   Navigator.of(
                     context,
                   ).pushNamedAndRemoveUntil(Routes.inspectorHome, (r) => false);
                 } else {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const BiometricEnrollmentScreen(),
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Biometric enrollment failed. Please try again.',
+                      ),
+                      backgroundColor: AppColors.errorRed,
                     ),
                   );
                 }

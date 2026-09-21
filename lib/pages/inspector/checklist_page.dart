@@ -7,7 +7,12 @@ import 'defect_capture_page.dart';
 
 class ChecklistPage extends StatefulWidget {
   final String inspectionId;
-  const ChecklistPage({super.key, required this.inspectionId});
+  final Map<String, dynamic> auditTrailData;
+  const ChecklistPage({
+    super.key,
+    required this.inspectionId,
+    this.auditTrailData = const {},
+  });
 
   @override
   State<ChecklistPage> createState() => _ChecklistPageState();
@@ -233,8 +238,9 @@ class _ChecklistPageState extends State<ChecklistPage> {
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => DefectCapturePage(
-                        inspectionId: item.id,
+                        inspectionId: widget.inspectionId,
                         failedFields: failedFields,
+                        auditTrailData: widget.auditTrailData,
                       ),
                     ),
                   );
@@ -242,7 +248,10 @@ class _ChecklistPageState extends State<ChecklistPage> {
                   // Normal MPE flow
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => MpeCalculatorPage(inspectionId: item.id),
+                      builder: (_) => MpeCalculatorPage(
+                        inspectionId: widget.inspectionId,
+                        auditTrailData: widget.auditTrailData,
+                      ),
                     ),
                   );
                 }

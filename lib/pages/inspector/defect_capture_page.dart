@@ -14,10 +14,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 class DefectCapturePage extends StatefulWidget {
   final String inspectionId;
   final List<String> failedFields;
+  final Map<String, dynamic> auditTrailData;
+
   const DefectCapturePage({
     super.key,
     required this.inspectionId,
     required this.failedFields,
+    this.auditTrailData = const {},
   });
 
   @override
@@ -204,18 +207,23 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
 
     setState(() => _isUploading = true);
 
-    final url = await CloudinaryService.uploadImage(_image!);
-    if (url == null) {
-      setState(() => _isUploading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to upload image. Try again.')),
-        );
+    String? pathOrUrl;
+    if (ConnectivityService().isOnline.value) {
+      pathOrUrl = await CloudinaryService.uploadImage(_image!);
+      if (pathOrUrl == null) {
+        setState(() => _isUploading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to upload image. Try again.')),
+          );
+        }
+        return;
       }
-      return;
+    } else {
+      pathOrUrl = _image!.path; // Store local path for offline queue
     }
 
-    _defectUrls.add(url);
+    _defectUrls.add(pathOrUrl);
 
     if (_currentIndex < widget.failedFields.length - 1) {
       // Move to next defect
@@ -230,6 +238,8 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
       });
     } else {
       // Submit all defects
+      final tokenHash =
+          'LMO_${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}_${widget.inspectionId.replaceAll('-', '')}';
       final item = inspectionFor(widget.inspectionId);
       final Map<String, dynamic> defectDataJson = {
         'instrumentCategory': item.instrument,
@@ -237,7 +247,10 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
         'lat': _latitude ?? 0.0,
         'long': _longitude ?? 0.0,
         'sealImageUrls': _defectUrls,
+        'token_hash': tokenHash,
         'status': 'FAILED_CHECKLIST',
+        'audit_trail': widget.auditTrailData,
+        'timeStamp': DateTime.now().microsecondsSinceEpoch,
       };
 
       if (ConnectivityService().isOnline.value) {

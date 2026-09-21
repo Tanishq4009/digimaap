@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:local_auth/local_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/colors.dart';
 import '../../widgets/common.dart';
 import '../../models/data.dart';
-import '../../utils/exif_helper.dart'; // for getCurrentDeviceLocation
+import '../../services/lmo_auth_service.dart';
 import 'checklist_page.dart';
 
 class InspectionDetailPage extends StatefulWidget {
@@ -21,51 +19,31 @@ class _InspectionDetailPageState extends State<InspectionDetailPage> {
   Future<void> _verifyLMOAndBegin() async {
     setState(() => _isVerifying = true);
     try {
-      final auth = LocalAuthentication();
-      final bool canAuthenticateWithBiometrics = await auth.canCheckBiometrics;
-      final bool canAuthenticate =
-          canAuthenticateWithBiometrics || await auth.isDeviceSupported();
+      final authService = LmoAuthService();
+      final payload = await authService.verifyInspectorForField(
+        widget.inspectionId,
+        "LMO_OFFICER_01",
+      );
 
-      bool didAuthenticate = false;
-      if (canAuthenticate) {
-        didAuthenticate = await auth.authenticate(
-          localizedReason: 'Verify LMO Identity to begin field inspection',
-          biometricOnly: false,
-          persistAcrossBackgrounding: true,
+      if (!mounted) return;
+
+      if (payload != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inspector Verified. Generating Audit Trail...'),
+            backgroundColor: AppColors.success,
+          ),
         );
-      } else {
-        // Fallback if device doesn't support
-        didAuthenticate = true;
-      }
 
-      if (didAuthenticate) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isInspectorVerified', true);
-
-        // Fetch location for mock audit log
-        final position = await getCurrentDeviceLocation();
-
-        // Print mock socket payload
-        final payload = {
-          "inspection_id": widget.inspectionId,
-          "inspector_id": "LMO_OFFICER_01",
-          "timestamp": DateTime.now().toIso8601String(),
-          "geo_coords": {
-            "lat": position?.latitude ?? 28.6139,
-            "lng": position?.longitude ?? 77.2090,
-          },
-          "verification_status": "BIOMETRIC_SUCCESS",
-        };
-        debugPrint('ANTI-PROXY VERIFICATION PAYLOAD: $payload');
-
-        if (!mounted) return;
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => ChecklistPage(inspectionId: widget.inspectionId),
+            builder: (_) => ChecklistPage(
+              inspectionId: widget.inspectionId,
+              auditTrailData: payload,
+            ),
           ),
         );
       } else {
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Inspector Verification Failed. Access Denied.'),

@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/colors.dart';
 import '../../widgets/common.dart';
 import '../../services/socket_service.dart';
 import '../../services/connectivity_service.dart';
+import '../../services/cloudinary_services.dart';
 
 class InspectorSyncPage extends StatefulWidget {
   const InspectorSyncPage({super.key});
@@ -50,9 +52,33 @@ class _InspectorSyncPageState extends State<InspectorSyncPage> {
 
     try {
       final itemWrapper = pendingInspections[selectedIndex!];
-      final itemToSync = itemWrapper.containsKey('payload')
+      final Map<String, dynamic> itemToSync = itemWrapper.containsKey('payload')
           ? itemWrapper['payload'] as Map<String, dynamic>
           : itemWrapper;
+
+      // Upload local images to Cloudinary
+      if (itemToSync.containsKey('sealImageUrls')) {
+        final List<dynamic> localUrls = itemToSync['sealImageUrls'];
+        final List<String> cloudUrls = [];
+
+        for (final url in localUrls) {
+          final String urlStr = url.toString();
+          // If it looks like a local path (not starting with http)
+          if (!urlStr.startsWith('http')) {
+            final File file = File(urlStr);
+            if (await file.exists()) {
+              final cloudUrl = await CloudinaryService.uploadImage(file);
+              if (cloudUrl != null) {
+                cloudUrls.add(cloudUrl);
+              }
+            }
+          } else {
+            cloudUrls.add(urlStr);
+          }
+        }
+
+        itemToSync['sealImageUrls'] = cloudUrls;
+      }
 
       // Emit via socket
       SocketService().emitInspectionApproved(itemToSync);

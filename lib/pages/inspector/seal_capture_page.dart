@@ -32,18 +32,12 @@ class SmartOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.saveLayer(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint(),
-    );
+    canvas.saveLayer(Rect.fromLTWH(0, 0, size.width, size.height), Paint());
 
     final maskPaint = Paint()
       ..color = Colors.black.withValues(alpha: 0.62)
       ..style = PaintingStyle.fill;
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      maskPaint,
-    );
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), maskPaint);
 
     final clearPaint = Paint()..blendMode = BlendMode.clear;
     final cx = size.width / 2;
@@ -54,21 +48,13 @@ class SmartOverlayPainter extends CustomPainter {
         canvas.drawCircle(Offset(cx, cy), 110, clearPaint);
       case SealType.punch:
         canvas.drawRect(
-          Rect.fromCenter(
-            center: Offset(cx, cy),
-            width: 210,
-            height: 210,
-          ),
+          Rect.fromCenter(center: Offset(cx, cy), width: 210, height: 210),
           clearPaint,
         );
       case SealType.sticker:
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromCenter(
-              center: Offset(cx, cy),
-              width: 300,
-              height: 130,
-            ),
+            Rect.fromCenter(center: Offset(cx, cy), width: 300, height: 130),
             const Radius.circular(12),
           ),
           clearPaint,
@@ -87,21 +73,13 @@ class SmartOverlayPainter extends CustomPainter {
         canvas.drawCircle(Offset(cx, cy), 110, borderPaint);
       case SealType.punch:
         canvas.drawRect(
-          Rect.fromCenter(
-            center: Offset(cx, cy),
-            width: 210,
-            height: 210,
-          ),
+          Rect.fromCenter(center: Offset(cx, cy), width: 210, height: 210),
           borderPaint,
         );
       case SealType.sticker:
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromCenter(
-              center: Offset(cx, cy),
-              width: 300,
-              height: 130,
-            ),
+            Rect.fromCenter(center: Offset(cx, cy), width: 300, height: 130),
             const Radius.circular(12),
           ),
           borderPaint,
@@ -113,12 +91,7 @@ class SmartOverlayPainter extends CustomPainter {
     }
   }
 
-  void _drawCornerTicks(
-    Canvas canvas,
-    double cx,
-    double cy,
-    Paint p,
-  ) {
+  void _drawCornerTicks(Canvas canvas, double cx, double cy, Paint p) {
     final hw = sealType == SealType.punch ? 105.0 : 150.0;
     final hh = sealType == SealType.punch ? 105.0 : 65.0;
     const len = 18.0;
@@ -157,14 +130,15 @@ class SmartOverlayPainter extends CustomPainter {
 
 class SealCapturePage extends StatefulWidget {
   final String inspectionId;
+  final Map<String, dynamic> auditTrailData;
   const SealCapturePage({
     super.key,
     required this.inspectionId,
+    this.auditTrailData = const {},
   });
 
   @override
-  State<SealCapturePage> createState() =>
-      _SealCapturePageState();
+  State<SealCapturePage> createState() => _SealCapturePageState();
 }
 
 class _SealCapturePageState extends State<SealCapturePage> {
@@ -173,8 +147,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
 
   SealType _sealType = SealType.lead;
 
-  File?
-  _croppedImage; // what we show + upload — never the raw uncropped shot
+  File? _croppedImage; // what we show + upload — never the raw uncropped shot
   bool _captured = false;
   bool _uploading = false;
   double? _latitude;
@@ -214,8 +187,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
   // ── Capture + auto-crop ─────────────────────────────────────────────
 
   Future<void> _takePhoto() async {
-    if (_cameraController == null ||
-        !_cameraController!.value.isInitialized) {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
       return;
     }
 
@@ -229,47 +201,33 @@ class _SealCapturePageState extends State<SealCapturePage> {
       if (lat != null && lng != null) {
         await writeGeoLocationToImage(photo.path, lat, lng);
       }
-      final location = await getGeoLocationFromImage(
-        photo.path,
-      );
+      final location = await getGeoLocationFromImage(photo.path);
       if (location != null) {
         lat = location['latitude'];
         lng = location['longitude'];
       }
 
       final photoTime =
-          await getImageOriginalDate(photo.path) ??
-          DateTime.now();
-      final hour = photoTime.hour % 12 == 0
-          ? 12
-          : photoTime.hour % 12;
-      final minute = photoTime.minute.toString().padLeft(
-        2,
-        '0',
-      );
-      final second = photoTime.second.toString().padLeft(
-        2,
-        '0',
-      );
+          await getImageOriginalDate(photo.path) ?? DateTime.now();
+      final hour = photoTime.hour % 12 == 0 ? 12 : photoTime.hour % 12;
+      final minute = photoTime.minute.toString().padLeft(2, '0');
+      final second = photoTime.second.toString().padLeft(2, '0');
       final period = photoTime.hour >= 12 ? 'PM' : 'AM';
       final formattedTime = '$hour:$minute:$second $period';
 
       // Crop down to exactly the cutout the user saw — this is what gets
       // shown for review AND what gets uploaded, so nothing outside the
       // guide shape ever leaves the device.
-      final cropped =
-          await ImageCropperService.cropImage(
-            File(photo.path),
-            _sealType,
-          );
+      final cropped = await ImageCropperService.cropImage(
+        File(photo.path),
+        _sealType,
+      );
 
       if (cropped == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Could not process the photo. Please try again.',
-            ),
+            content: Text('Could not process the photo. Please try again.'),
           ),
         );
         return;
@@ -310,10 +268,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
     final dLambda = (lon2 - lon1) * pi / 180;
     final a =
         sin(dPhi / 2) * sin(dPhi / 2) +
-        cos(phi1) *
-            cos(phi2) *
-            sin(dLambda / 2) *
-            sin(dLambda / 2);
+        cos(phi1) * cos(phi2) * sin(dLambda / 2) * sin(dLambda / 2);
     return r * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
 
@@ -322,15 +277,10 @@ class _SealCapturePageState extends State<SealCapturePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(
-              Icons.location_off_rounded,
-              color: Colors.redAccent,
-            ),
+            Icon(Icons.location_off_rounded, color: Colors.redAccent),
             SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -350,9 +300,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
           children: [
             Text(
               'You are ${distanceM.toStringAsFixed(0)}m away from the device location.',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -380,15 +328,10 @@ class _SealCapturePageState extends State<SealCapturePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
           'Upload Failed',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: AppColors.ink,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.ink),
         ),
         content: const Text(
           'Could not upload the seal photo to the cloud. Check your connection and try again.',
@@ -409,12 +352,8 @@ class _SealCapturePageState extends State<SealCapturePage> {
   Future<void> _submit() async {
     if (_croppedImage == null) return;
 
-    final expectedLoc = getInspectionLocation(
-      widget.inspectionId,
-    );
-    if (expectedLoc != null &&
-        _latitude != null &&
-        _longitude != null) {
+    final expectedLoc = getInspectionLocation(widget.inspectionId);
+    if (expectedLoc != null && _latitude != null && _longitude != null) {
       final distanceM = _haversineDistanceMetres(
         expectedLoc['lat']!,
         expectedLoc['lng']!,
@@ -435,24 +374,27 @@ class _SealCapturePageState extends State<SealCapturePage> {
       // cropped file's local path + metadata; the sync flow should re-run
       // the same upload + emit when connectivity returns.
       final prefs = await SharedPreferences.getInstance();
-      final pending =
-          prefs.getStringList('pending_inspections') ?? [];
+      final pending = prefs.getStringList('pending_inspections') ?? [];
+      final tokenHash =
+          'LMO_${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}_${widget.inspectionId.replaceAll('-', '')}';
+
       final wrapper = {
-        'inspectionId': widget.inspectionId,
-        'business': item.business,
-        'payload': {
-          'instrumentCategory': item.instrument,
-          'instrumentSerialNumber': item.serial,
-          'lat': _latitude ?? 0.0,
-          'long': _longitude ?? 0.0,
-          'localImagePath': _croppedImage!.path,
-        },
+        'inspectionId': widget
+            .inspectionId, // We need inspectionId to mark it properly later
+        'instrumentCategory': item.instrument,
+        'instrumentSerialNumber': item.serial,
+        'lat': _latitude ?? 0.0,
+        'long': _longitude ?? 0.0,
+        'sealImageUrls': [
+          _croppedImage!.path,
+        ], // Storing LOCAL path when offline
+        'token_hash': tokenHash,
+        'status': 'APPROVED_CHECKLIST',
+        'audit_trail': widget.auditTrailData, // Include the audit trail
+        'timeStamp': DateTime.now().microsecondsSinceEpoch,
       };
       pending.add(jsonEncode(wrapper));
-      await prefs.setStringList(
-        'pending_inspections',
-        pending,
-      );
+      await prefs.setStringList('pending_inspections', pending);
 
       markInspectionDone(widget.inspectionId);
       if (!mounted) return;
@@ -465,37 +407,38 @@ class _SealCapturePageState extends State<SealCapturePage> {
         ),
       );
       if (!mounted) return;
-      Navigator.of(
-        context,
-      ).popUntil((route) => route.isFirst);
+      Navigator.of(context).popUntil((route) => route.isFirst);
       return;
     }
 
     setState(() => _uploading = true);
-    final cloudUrl = await CloudinaryService.uploadImage(
-      _croppedImage!,
-    );
+    final List<String?> cloudUrl = [];
+    final String? cloud = await CloudinaryService.uploadImage(_croppedImage!);
     if (!mounted) return;
     setState(() => _uploading = false);
 
-    if (cloudUrl == null) {
+    if (cloud == null) {
       _showUploadFailedPopup();
       return;
     }
+
+    cloudUrl.add(cloud);
+
+    final tokenHash =
+        'LMO_${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}_${widget.inspectionId.replaceAll('-', '')}';
 
     final sealDataJson = {
       'instrumentCategory': item.instrument,
       'instrumentSerialNumber': item.serial,
       'lat': _latitude ?? 0.0,
       'long': _longitude ?? 0.0,
-      'sealImageUrls': cloudUrl, 
-      'status': 'APPROVED_CHECKLIST'
+      'sealImageUrls': cloudUrl,
+      'token_hash': tokenHash,
+      'status': 'APPROVED_CHECKLIST',
+      'timeStamp': DateTime.now().microsecondsSinceEpoch,
     };
 
-    saveSealEvidence(
-      item.id,
-      SealEvidence.fromJson(sealDataJson),
-    );
+    saveSealEvidence(item.id, SealEvidence.fromJson(sealDataJson));
     SocketService().emitInspectionApproved(sealDataJson);
     markInspectionDone(widget.inspectionId);
 
@@ -509,9 +452,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
       ),
     );
     if (!mounted) return;
-    Navigator.of(
-      context,
-    ).popUntil((route) => route.isFirst);
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   // ── Full-bleed camera preview (BoxFit.cover behaviour) ────────────────
@@ -521,8 +462,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
   Widget _buildCoverCameraPreview(BuildContext context) {
     final controller = _cameraController!;
     final size = MediaQuery.of(context).size;
-    var scale =
-        size.aspectRatio * controller.value.aspectRatio;
+    var scale = size.aspectRatio * controller.value.aspectRatio;
     if (scale < 1) scale = 1 / scale;
     return Transform.scale(
       scale: scale,
@@ -543,37 +483,25 @@ class _SealCapturePageState extends State<SealCapturePage> {
         children: [
           if (_captured && _croppedImage != null)
             Image.file(_croppedImage!, fit: BoxFit.contain)
-          else if (_isCameraInitialized &&
-              _cameraController != null)
+          else if (_isCameraInitialized && _cameraController != null)
             _buildCoverCameraPreview(context)
           else
             const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.saffron,
-              ),
+              child: CircularProgressIndicator(color: AppColors.saffron),
             ),
 
           if (!_captured)
-            CustomPaint(
-              painter: SmartOverlayPainter(
-                sealType: _sealType,
-              ),
-            ),
+            CustomPaint(painter: SmartOverlayPainter(sealType: _sealType)),
 
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _glassButton(
                     icon: Icons.arrow_back_rounded,
-                    onTap: () =>
-                        Navigator.of(context).pop(),
+                    onTap: () => Navigator.of(context).pop(),
                   ),
                   Column(
                     mainAxisSize: MainAxisSize.min,
@@ -591,9 +519,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
                       Text(
                         item.serial,
                         style: TextStyle(
-                          color: Colors.white.withValues(
-                            alpha: 0.6,
-                          ),
+                          color: Colors.white.withValues(alpha: 0.6),
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                         ),
@@ -606,16 +532,10 @@ class _SealCapturePageState extends State<SealCapturePage> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.success.withValues(
-                        alpha: 0.25,
-                      ),
-                      borderRadius: BorderRadius.circular(
-                        999,
-                      ),
+                      color: AppColors.success.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(999),
                       border: Border.all(
-                        color: Colors.white.withValues(
-                          alpha: 0.15,
-                        ),
+                        color: Colors.white.withValues(alpha: 0.15),
                       ),
                     ),
                     child: const Text(
@@ -634,22 +554,17 @@ class _SealCapturePageState extends State<SealCapturePage> {
 
           if (!_captured)
             Positioned(
-              top:
-                  MediaQuery.of(context).size.height * 0.14,
+              top: MediaQuery.of(context).size.height * 0.14,
               left: 0,
               right: 0,
               child: Container(
-                margin: const EdgeInsets.symmetric(
-                  horizontal: 40,
-                ),
+                margin: const EdgeInsets.symmetric(horizontal: 40),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(
-                    alpha: 0.45,
-                  ),
+                  color: Colors.black.withValues(alpha: 0.45),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: const Text(
@@ -670,12 +585,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
               left: 0,
               right: 0,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(
-                  24,
-                  24,
-                  24,
-                  40,
-                ),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
@@ -690,8 +600,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         _sealChip(
                           'Lead Seal',
@@ -722,15 +631,12 @@ class _SealCapturePageState extends State<SealCapturePage> {
                           color: Colors.white,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Colors.white.withValues(
-                              alpha: 0.4,
-                            ),
+                            color: Colors.white.withValues(alpha: 0.4),
                             width: 5,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.white
-                                  .withValues(alpha: 0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               blurRadius: 12,
                             ),
                           ],
@@ -752,12 +658,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
               left: 0,
               right: 0,
               child: Container(
-                margin: const EdgeInsets.fromLTRB(
-                  16,
-                  0,
-                  16,
-                  32,
-                ),
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -769,34 +670,27 @@ class _SealCapturePageState extends State<SealCapturePage> {
                     Row(
                       children: [
                         ClipRRect(
-                          borderRadius:
-                              BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(10),
                           child: SizedBox(
                             height: 56,
                             width: 56,
                             child: _croppedImage != null
-                                ? Image.file(
-                                    _croppedImage!,
-                                    fit: BoxFit.cover,
-                                  )
+                                ? Image.file(_croppedImage!, fit: BoxFit.cover)
                                 : null,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _latitude != null &&
-                                        _longitude != null
+                                _latitude != null && _longitude != null
                                     ? 'GPS: ${_latitude!.toStringAsFixed(4)}°, ${_longitude!.toStringAsFixed(4)}°'
                                     : 'Seal photo · Geo-tagged',
                                 style: const TextStyle(
                                   fontSize: 13,
-                                  fontWeight:
-                                      FontWeight.w800,
+                                  fontWeight: FontWeight.w800,
                                   color: AppColors.ink,
                                 ),
                               ),
@@ -821,21 +715,14 @@ class _SealCapturePageState extends State<SealCapturePage> {
                         Expanded(
                           child: OutlinedButton(
                             style: OutlinedButton.styleFrom(
-                              minimumSize:
-                                  const Size.fromHeight(44),
-                              backgroundColor:
-                                  AppColors.slate100,
+                              minimumSize: const Size.fromHeight(44),
+                              backgroundColor: AppColors.slate100,
                               side: BorderSide.none,
                               shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(
-                                      10,
-                                    ),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            onPressed: _uploading
-                                ? null
-                                : _retake,
+                            onPressed: _uploading ? null : _retake,
                             child: const Text(
                               'Retake',
                               style: TextStyle(
@@ -850,37 +737,27 @@ class _SealCapturePageState extends State<SealCapturePage> {
                         Expanded(
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  AppColors.saffron,
-                              minimumSize:
-                                  const Size.fromHeight(44),
+                              backgroundColor: AppColors.saffron,
+                              minimumSize: const Size.fromHeight(44),
                               shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(
-                                      10,
-                                    ),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            onPressed: _uploading
-                                ? null
-                                : _submit,
+                            onPressed: _uploading ? null : _submit,
                             child: _uploading
                                 ? const SizedBox(
                                     height: 16,
                                     width: 16,
-                                    child:
-                                        CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color:
-                                              Colors.white,
-                                        ),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
                                   )
                                 : const Text(
                                     'Use photo',
                                     style: TextStyle(
                                       color: Colors.white,
-                                      fontWeight:
-                                          FontWeight.w800,
+                                      fontWeight: FontWeight.w800,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -910,14 +787,12 @@ class _SealCapturePageState extends State<SealCapturePage> {
               bottom: 210,
               right: 16,
               child: Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _gpsTag(
                     '${_latitude!.toStringAsFixed(4)}°, ${_longitude!.toStringAsFixed(4)}°',
                   ),
-                  if (_capturedTime != null)
-                    _gpsTag(_capturedTime!),
+                  if (_capturedTime != null) _gpsTag(_capturedTime!),
                 ],
               ),
             ),
@@ -926,67 +801,48 @@ class _SealCapturePageState extends State<SealCapturePage> {
     );
   }
 
-  Widget _glassButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(999),
-    child: Container(
-      height: 40,
-      width: 40,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.35),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
+  Widget _glassButton({required IconData icon, required VoidCallback onTap}) =>
+      InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          height: 40,
+          width: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.35),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
         ),
-      ),
-      child: Icon(icon, color: Colors.white, size: 20),
-    ),
-  );
+      );
 
-  Widget _sealChip(
-    String label,
-    SealType type,
-    IconData icon,
-  ) {
+  Widget _sealChip(String label, SealType type, IconData icon) {
     final active = _sealType == type;
     return GestureDetector(
       onTap: () => setState(() => _sealType = type),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 8,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: active
               ? Colors.white.withValues(alpha: 0.95)
               : Colors.black.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: active
-                ? Colors.white
-                : Colors.white.withValues(alpha: 0.3),
+            color: active ? Colors.white : Colors.white.withValues(alpha: 0.3),
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 14,
-              color: active ? AppColors.navy : Colors.white,
-            ),
+            Icon(icon, size: 14, color: active ? AppColors.navy : Colors.white),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: active
-                    ? AppColors.navy
-                    : Colors.white,
+                color: active ? AppColors.navy : Colors.white,
                 fontWeight: FontWeight.w700,
                 fontSize: 11,
               ),
@@ -998,10 +854,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
   }
 
   Widget _gpsTag(String text) => Container(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 10,
-      vertical: 5,
-    ),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
     decoration: BoxDecoration(
       color: Colors.black.withValues(alpha: 0.55),
       borderRadius: BorderRadius.circular(8),
@@ -1047,26 +900,18 @@ class _SealSubmittedSheet extends StatelessWidget {
             width: 56,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: isOffline
-                  ? AppColors.amber50
-                  : AppColors.green50,
+              color: isOffline ? AppColors.amber50 : AppColors.green50,
               shape: BoxShape.circle,
             ),
             child: Icon(
-              isOffline
-                  ? Icons.cloud_off_rounded
-                  : Icons.check_circle_rounded,
-              color: isOffline
-                  ? AppColors.amber
-                  : AppColors.success,
+              isOffline ? Icons.cloud_off_rounded : Icons.check_circle_rounded,
+              color: isOffline ? AppColors.amber : AppColors.success,
               size: 30,
             ),
           ),
           const SizedBox(height: 16),
           Text(
-            isOffline
-                ? 'Added to Sync Queue'
-                : 'Inspection Submitted',
+            isOffline ? 'Added to Sync Queue' : 'Inspection Submitted',
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -1077,10 +922,7 @@ class _SealSubmittedSheet extends StatelessWidget {
           Text(
             '${item.business} · $inspectionId',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.slate,
-            ),
+            style: const TextStyle(fontSize: 12, color: AppColors.slate),
           ),
           const SizedBox(height: 4),
           Text(
@@ -1088,10 +930,7 @@ class _SealSubmittedSheet extends StatelessWidget {
                 ? 'Seal photo saved locally. It will upload and sync automatically once you\'re back online.'
                 : 'Seal evidence uploaded, geo-tagged and submitted successfully.',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.slate,
-            ),
+            style: const TextStyle(fontSize: 12, color: AppColors.slate),
           ),
           const SizedBox(height: 24),
           SizedBox(

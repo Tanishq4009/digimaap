@@ -46,7 +46,7 @@ class SocketService {
     }
 
     socket = i_o.io(
-      'http://192.168.1.4:8008',
+      'http://192.168.1.5:8008',
       i_o.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
@@ -88,7 +88,11 @@ class SocketService {
           );
 
           // Store expected location from form so seal page can verify proximity
-          storeInspectionLocation(liveId, formData.lat, formData.long);
+          storeInspectionLocation(
+            liveId,
+            formData.lat,
+            formData.long,
+          );
 
           final newNotification = NotificationItem(
             'New Verification Task',
@@ -143,10 +147,7 @@ class SocketService {
   /// Emits the seal evidence JSON payload to the 'inspection_approved' channel.
   void emitInspectionApproved(Map<String, dynamic> data) {
     debugPrint(
-      '=== EMITTING "inspection_approved" EVENT ===',
-    );
-    debugPrint(
-      'instrumentCategory:  $data'
+      'Attempting to emit inspection_approved for SN: ${data['instrumentSerialNumber']}',
     );
     debugPrint(
       'lat: ${data['lat']}, long: ${data['long']}',
@@ -174,6 +175,26 @@ class SocketService {
         socket!.connect();
       }
       socket?.emit('inspection_approved', data);
+    }
+  }
+
+  void emitBiometricAudit(Map<String, dynamic> data) {
+    debugPrint('Attempting to emit biometric_audit...');
+    if (socket != null && socket!.connected) {
+      socket!.emit('biometric_audit', data);
+      debugPrint(
+        'Successfully emitted "biometric_audit" to server!',
+      );
+    } else {
+      debugPrint(
+        'Socket not connected yet. Connecting and attempting emit...',
+      );
+      if (socket == null) {
+        connect();
+      } else {
+        socket!.connect();
+      }
+      socket?.emit('biometric_audit', data);
     }
   }
 

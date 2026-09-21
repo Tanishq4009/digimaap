@@ -38,19 +38,25 @@ const _mpeTable = <String, List<_LoadBand>>{
 double _lookupMpe(String accuracyClass, double standardWeight, double e) {
   final bands = _mpeTable[accuracyClass];
   if (bands == null || e <= 0) return 0;
-  final multiples = (standardWeight / e) ;
+  final multiples = (standardWeight / e);
   for (final band in bands) {
     if (multiples >= band.fromMultiples && multiples < band.toMultiples) {
       return band.mpeMultiples * e;
     }
   }
   // Fallback: last band
-  return bands.last.mpeMultiples * e ;
+  return bands.last.mpeMultiples * e;
 }
 
 class MpeCalculatorPage extends StatefulWidget {
   final String inspectionId;
-  const MpeCalculatorPage({super.key, required this.inspectionId});
+  final Map<String, dynamic> auditTrailData;
+
+  const MpeCalculatorPage({
+    super.key,
+    required this.inspectionId,
+    this.auditTrailData = const {},
+  });
 
   @override
   State<MpeCalculatorPage> createState() => _MpeCalculatorPageState();
@@ -346,8 +352,10 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) =>
-                            SealCapturePage(inspectionId: widget.inspectionId),
+                        builder: (_) => SealCapturePage(
+                          inspectionId: widget.inspectionId,
+                          auditTrailData: widget.auditTrailData,
+                        ),
                       ),
                     );
                   },
