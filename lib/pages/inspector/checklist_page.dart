@@ -7,11 +7,9 @@ import 'defect_capture_page.dart';
 
 class ChecklistPage extends StatefulWidget {
   final String inspectionId;
-  final Map<String, dynamic> auditTrailData;
   const ChecklistPage({
     super.key,
     required this.inspectionId,
-    this.auditTrailData = const {},
   });
 
   @override
@@ -240,7 +238,6 @@ class _ChecklistPageState extends State<ChecklistPage> {
                       builder: (_) => DefectCapturePage(
                         inspectionId: widget.inspectionId,
                         failedFields: failedFields,
-                        auditTrailData: widget.auditTrailData,
                       ),
                     ),
                   );
@@ -250,7 +247,6 @@ class _ChecklistPageState extends State<ChecklistPage> {
                     MaterialPageRoute(
                       builder: (_) => MpeCalculatorPage(
                         inspectionId: widget.inspectionId,
-                        auditTrailData: widget.auditTrailData,
                       ),
                     ),
                   );

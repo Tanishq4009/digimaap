@@ -130,11 +130,9 @@ class SmartOverlayPainter extends CustomPainter {
 
 class SealCapturePage extends StatefulWidget {
   final String inspectionId;
-  final Map<String, dynamic> auditTrailData;
   const SealCapturePage({
     super.key,
     required this.inspectionId,
-    this.auditTrailData = const {},
   });
 
   @override
@@ -390,7 +388,6 @@ class _SealCapturePageState extends State<SealCapturePage> {
         ], // Storing LOCAL path when offline
         'token_hash': tokenHash,
         'status': 'APPROVED_CHECKLIST',
-        'audit_trail': widget.auditTrailData, // Include the audit trail
         'timeStamp': DateTime.now().microsecondsSinceEpoch,
       };
       pending.add(jsonEncode(wrapper));

@@ -11,9 +11,17 @@ class CertificateData {
   final String instrument;
   final String category;
   final String authority;
-  final String status; // 'valid' | 'expired'
+  final String status; // 'valid' | 'expired' | 'invalid'
   final String issueDate;
   final String expiryDate;
+  final String merchantName;
+  final String address;
+  final String serial;
+  final String accuracyClass;
+  final String capacity;
+  final String scaleInterval;
+  final String inspectorName;
+  final String inspectorId;
 
   const CertificateData({
     required this.id,
@@ -24,6 +32,14 @@ class CertificateData {
     required this.status,
     required this.issueDate,
     required this.expiryDate,
+    required this.merchantName,
+    required this.address,
+    required this.serial,
+    required this.accuracyClass,
+    required this.capacity,
+    required this.scaleInterval,
+    required this.inspectorName,
+    required this.inspectorId,
   });
 }
 
@@ -37,6 +53,14 @@ final Map<String, CertificateData> certificates = {
     status: 'valid',
     issueDate: '08 Jan 2026',
     expiryDate: '07 Jan 2027',
+    merchantName: 'Sharma Fuel & Weighing Services',
+    address: 'Ayodhya Bypass Road, Bhopal, MP',
+    serial: 'ES-24-MP-8831',
+    accuracyClass: 'Class III',
+    capacity: '30 kg',
+    scaleInterval: '5 g',
+    inspectorName: 'Anil Kumar',
+    inspectorId: 'LMO-MP-1048',
   ),
   'LM-MP-2025-01871': const CertificateData(
     id: 'LM-MP-2025-01871',
@@ -47,6 +71,14 @@ final Map<String, CertificateData> certificates = {
     status: 'valid',
     issueDate: '11 Feb 2025',
     expiryDate: '10 Feb 2026',
+    merchantName: 'Bharat Weighing House',
+    address: 'Govindpura Industrial Area, MP',
+    serial: 'AV-24-MP-1192',
+    accuracyClass: 'Class III',
+    capacity: '100 kg',
+    scaleInterval: '10 g',
+    inspectorName: 'Rahul Singh',
+    inspectorId: 'LMO-MP-1049',
   ),
   'LM-DL-2024-09314': const CertificateData(
     id: 'LM-DL-2024-09314',
@@ -57,6 +89,14 @@ final Map<String, CertificateData> certificates = {
     status: 'expired',
     issueDate: '18 Dec 2024',
     expiryDate: '17 Dec 2025',
+    merchantName: 'Delhi Petrol Pump',
+    address: 'CP, New Delhi',
+    serial: 'DL-FD-9921',
+    accuracyClass: 'Class 0.5',
+    capacity: 'N/A',
+    scaleInterval: '0.01 L',
+    inspectorName: 'Amit Desai',
+    inspectorId: 'LMO-DL-2021',
   ),
 };
 
@@ -75,6 +115,7 @@ class InspectionData {
   final String distance;
   final String priority;
   final bool isLive; 
+  final String? accuracyClass;
 
   const InspectionData({
     required this.id,
@@ -87,7 +128,8 @@ class InspectionData {
     required this.time,
     required this.distance,
     required this.priority,
-    this.isLive = false, // NEW
+    this.isLive = false, 
+    this.accuracyClass,
   });
 }
 
@@ -154,6 +196,7 @@ String addLiveInspection({
   required String serial,
   String address = 'Live verification request',
   String applicant = '—',
+  String? accuracyClass,
 }) {
   final id =
       'LIVE-${DateTime.now().millisecondsSinceEpoch}';
@@ -169,6 +212,7 @@ String addLiveInspection({
     distance: '—',
     priority: 'NEW REQUEST',
     isLive: true,
+    accuracyClass: accuracyClass,
   );
   liveInspectionIds.value = [
     id,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../theme/colors.dart';
 import '../../widgets/common.dart';
+import '../../models/data.dart';
 import 'seal_capture_page.dart';
 
 class _LoadBand {
@@ -50,12 +51,10 @@ double _lookupMpe(String accuracyClass, double standardWeight, double e) {
 
 class MpeCalculatorPage extends StatefulWidget {
   final String inspectionId;
-  final Map<String, dynamic> auditTrailData;
 
   const MpeCalculatorPage({
     super.key,
     required this.inspectionId,
-    this.auditTrailData = const {},
   });
 
   @override
@@ -65,7 +64,7 @@ class MpeCalculatorPage extends StatefulWidget {
 class _MpeCalculatorPageState extends State<MpeCalculatorPage>
     with SingleTickerProviderStateMixin {
   // Form controllers
-  String _accuracyClass = 'Class III';
+  late String _accuracyClass;
   final _eCtrl = TextEditingController();
   final _stdWeightCtrl = TextEditingController();
   final _observedCtrl = TextEditingController();
@@ -82,6 +81,9 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
   @override
   void initState() {
     super.initState();
+    final item = inspectionFor(widget.inspectionId);
+    _accuracyClass = item.accuracyClass ?? 'Class III';
+
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -226,46 +228,37 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: ['Class I', 'Class II', 'Class III', 'Class IIII']
-                        .map((cls) {
-                          final active = _accuracyClass == cls;
-                          return Expanded(
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() => _accuracyClass = cls);
-                                _reset();
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 3,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: active
-                                      ? AppColors.navy
-                                      : AppColors.slate100,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  cls.replaceAll('Class ', ''),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: active
-                                        ? Colors.white
-                                        : AppColors.slate,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        })
-                        .toList(),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.slate100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.slate.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.lock_outline, size: 16, color: AppColors.slate),
+                        const SizedBox(width: 8),
+                        Text(
+                          _accuracyClass,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Text(
+                          'Fixed per verification data',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.slate,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -354,7 +347,6 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
                       MaterialPageRoute(
                         builder: (_) => SealCapturePage(
                           inspectionId: widget.inspectionId,
-                          auditTrailData: widget.auditTrailData,
                         ),
                       ),
                     );

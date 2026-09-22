@@ -18,6 +18,14 @@ class SocketService {
   GlobalKey<NavigatorState>? _navKey;
   ValueNotifier<List<NotificationItem>>?
   _notificationsNotifier;
+  String? _officerUserId;
+
+  void joinOfficerRoom(String userId) {
+    _officerUserId = userId;
+    if (socket != null && socket!.connected) {
+      socket!.emit('join_officer_room', {'userId': userId});
+    }
+  }
 
   void init({
     required GlobalKey<NavigatorState> navigatorKey,
@@ -42,11 +50,14 @@ class SocketService {
       debugPrint(
         'Socket is already connected: ${socket!.id}',
       );
+      if (_officerUserId != null) {
+        socket!.emit('join_officer_room', {'userId': _officerUserId});
+      }
       return;
     }
 
     socket = i_o.io(
-      'http://192.168.1.5:8008',
+      'http://192.168.1.7:8008',
       i_o.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
@@ -55,7 +66,18 @@ class SocketService {
 
     socket!.onConnect((_) {
       debugPrint('Connected: ${socket!.id}');
+      if (_officerUserId != null) {
+        socket!.emit('join_officer_room', {'userId': _officerUserId});
+      }
       sendAck();
+    });
+
+    socket!.on('officer_room_joined', (data) {
+      debugPrint('Successfully joined room: ${data['room']}');
+    });
+
+    socket!.on('officer_room_error', (data) {
+      debugPrint('Failed to join room: ${data['message']}');
     });
 
     socket!.on('message', (raw) {
@@ -85,6 +107,7 @@ class SocketService {
             instrument: formData.instrumentCategory,
             model: formData.modelNo,
             serial: formData.instrumentSerialNumber,
+            accuracyClass: formData.accuracyClass,
           );
 
           // Store expected location from form so seal page can verify proximity

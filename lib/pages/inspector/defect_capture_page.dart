@@ -14,20 +14,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 class DefectCapturePage extends StatefulWidget {
   final String inspectionId;
   final List<String> failedFields;
-  final Map<String, dynamic> auditTrailData;
 
   const DefectCapturePage({
     super.key,
     required this.inspectionId,
     required this.failedFields,
-    this.auditTrailData = const {},
   });
 
   @override
-  State<DefectCapturePage> createState() => _DefectCapturePageState();
+  State<DefectCapturePage> createState() =>
+      _DefectCapturePageState();
 }
 
-class _DefectCapturePageState extends State<DefectCapturePage> {
+class _DefectCapturePageState
+    extends State<DefectCapturePage> {
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
 
@@ -73,14 +73,17 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
   }
 
   Future<void> _takePhoto() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized) {
       return;
     }
 
     try {
-      final XFile photo = await _cameraController!.takePicture();
+      final XFile photo = await _cameraController!
+          .takePicture();
 
-      final Position? position = await getCurrentDeviceLocation();
+      final Position? position =
+          await getCurrentDeviceLocation();
       double? lat = position?.latitude;
       double? lng = position?.longitude;
 
@@ -88,17 +91,28 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
         await writeGeoLocationToImage(photo.path, lat, lng);
       }
 
-      final location = await getGeoLocationFromImage(photo.path);
+      final location = await getGeoLocationFromImage(
+        photo.path,
+      );
       if (location != null) {
         lat = location['latitude'];
         lng = location['longitude'];
       }
 
       final photoTime =
-          await getImageOriginalDate(photo.path) ?? DateTime.now();
-      final hour = photoTime.hour % 12 == 0 ? 12 : photoTime.hour % 12;
-      final minute = photoTime.minute.toString().padLeft(2, '0');
-      final second = photoTime.second.toString().padLeft(2, '0');
+          await getImageOriginalDate(photo.path) ??
+          DateTime.now();
+      final hour = photoTime.hour % 12 == 0
+          ? 12
+          : photoTime.hour % 12;
+      final minute = photoTime.minute.toString().padLeft(
+        2,
+        '0',
+      );
+      final second = photoTime.second.toString().padLeft(
+        2,
+        '0',
+      );
       final period = photoTime.hour >= 12 ? 'PM' : 'AM';
       final formattedTime = '$hour:$minute:$second $period';
 
@@ -135,7 +149,10 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
     final deltaLambda = (lon2 - lon1) * pi / 180;
     final a =
         sin(deltaPhi / 2) * sin(deltaPhi / 2) +
-        cos(phi1) * cos(phi2) * sin(deltaLambda / 2) * sin(deltaLambda / 2);
+        cos(phi1) *
+            cos(phi2) *
+            sin(deltaLambda / 2) *
+            sin(deltaLambda / 2);
     return R * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
 
@@ -144,10 +161,15 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
         title: const Row(
           children: [
-            Icon(Icons.location_off_rounded, color: Colors.redAccent),
+            Icon(
+              Icons.location_off_rounded,
+              color: Colors.redAccent,
+            ),
             SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -167,7 +189,9 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
           children: [
             Text(
               'You are ${distanceM.toStringAsFixed(0)}m away from the device location.',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -191,8 +215,12 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
   }
 
   Future<void> _handleNextOrSubmit() async {
-    final expectedLoc = getInspectionLocation(widget.inspectionId);
-    if (expectedLoc != null && _latitude != null && _longitude != null) {
+    final expectedLoc = getInspectionLocation(
+      widget.inspectionId,
+    );
+    if (expectedLoc != null &&
+        _latitude != null &&
+        _longitude != null) {
       final distanceM = _haversineDistanceMetres(
         expectedLoc['lat']!,
         expectedLoc['lng']!,
@@ -209,18 +237,25 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
 
     String? pathOrUrl;
     if (ConnectivityService().isOnline.value) {
-      pathOrUrl = await CloudinaryService.uploadImage(_image!);
+      pathOrUrl = await CloudinaryService.uploadImage(
+        _image!,
+      );
       if (pathOrUrl == null) {
         setState(() => _isUploading = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to upload image. Try again.')),
+            const SnackBar(
+              content: Text(
+                'Failed to upload image. Try again.',
+              ),
+            ),
           );
         }
         return;
       }
     } else {
-      pathOrUrl = _image!.path; // Store local path for offline queue
+      pathOrUrl = _image!
+          .path; // Store local path for offline queue
     }
 
     _defectUrls.add(pathOrUrl);
@@ -249,22 +284,28 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
         'sealImageUrls': _defectUrls,
         'token_hash': tokenHash,
         'status': 'FAILED_CHECKLIST',
-        'audit_trail': widget.auditTrailData,
         'timeStamp': DateTime.now().microsecondsSinceEpoch,
       };
 
       if (ConnectivityService().isOnline.value) {
-        SocketService().emitInspectionApproved(defectDataJson);
+        SocketService().emitInspectionApproved(
+          defectDataJson,
+        );
       } else {
         final prefs = await SharedPreferences.getInstance();
-        final pending = prefs.getStringList('pending_inspections') ?? [];
+        final pending =
+            prefs.getStringList('pending_inspections') ??
+            [];
         final wrapper = {
           'inspectionId': widget.inspectionId,
           'business': item.business,
           'payload': defectDataJson,
         };
         pending.add(jsonEncode(wrapper));
-        await prefs.setStringList('pending_inspections', pending);
+        await prefs.setStringList(
+          'pending_inspections',
+          pending,
+        );
       }
 
       markInspectionDone(widget.inspectionId);
@@ -280,13 +321,16 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
         ),
       );
       if (!mounted) return;
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      Navigator.of(
+        context,
+      ).popUntil((route) => route.isFirst);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLast = _currentIndex == widget.failedFields.length - 1;
+    final isLast =
+        _currentIndex == widget.failedFields.length - 1;
     final currentField = widget.failedFields.isNotEmpty
         ? widget.failedFields[_currentIndex]
         : 'Unknown Field';
@@ -298,22 +342,30 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
         children: [
           if (_captured && _image != null)
             Image.file(_image!, fit: BoxFit.cover)
-          else if (_isCameraInitialized && _cameraController != null)
+          else if (_isCameraInitialized &&
+              _cameraController != null)
             CameraPreview(_cameraController!)
           else
             const Center(
-              child: CircularProgressIndicator(color: AppColors.saffron),
+              child: CircularProgressIndicator(
+                color: AppColors.saffron,
+              ),
             ),
 
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 12,
+              ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween,
                 children: [
                   _glassButton(
                     icon: Icons.arrow_back_rounded,
-                    onTap: () => Navigator.of(context).pop(),
+                    onTap: () =>
+                        Navigator.of(context).pop(),
                   ),
                   Column(
                     mainAxisSize: MainAxisSize.min,
@@ -331,7 +383,9 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
                       Text(
                         '${_currentIndex + 1} OF ${widget.failedFields.length}',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: Colors.white.withValues(
+                            alpha: 0.6,
+                          ),
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
                         ),
@@ -344,10 +398,16 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.errorRed.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(999),
+                      color: AppColors.errorRed.withValues(
+                        alpha: 0.25,
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        999,
+                      ),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.15),
+                        color: Colors.white.withValues(
+                          alpha: 0.15,
+                        ),
                       ),
                     ),
                     child: const Text(
@@ -366,20 +426,27 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
 
           if (!_captured)
             Positioned(
-              top: MediaQuery.of(context).size.height * 0.14,
+              top:
+                  MediaQuery.of(context).size.height * 0.14,
               left: 0,
               right: 0,
               child: Column(
                 children: [
                   Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 40),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 40,
+                    ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(999),
+                      color: Colors.black.withValues(
+                        alpha: 0.45,
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        999,
+                      ),
                     ),
                     child: const Text(
                       'Capture defect evidence for:',
@@ -393,14 +460,20 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
                   ),
                   const SizedBox(height: 6),
                   Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                    ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.errorRed.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.errorRed.withValues(
+                        alpha: 0.85,
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        12,
+                      ),
                     ),
                     child: Text(
                       currentField,
@@ -422,7 +495,12 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
               left: 0,
               right: 0,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                padding: const EdgeInsets.fromLTRB(
+                  24,
+                  24,
+                  24,
+                  40,
+                ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
@@ -445,12 +523,15 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
                           color: Colors.white,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: Colors.white.withValues(
+                              alpha: 0.4,
+                            ),
                             width: 5,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.white.withValues(alpha: 0.2),
+                              color: Colors.white
+                                  .withValues(alpha: 0.2),
                               blurRadius: 12,
                             ),
                           ],
@@ -472,7 +553,12 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
               left: 0,
               right: 0,
               child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                margin: const EdgeInsets.fromLTRB(
+                  16,
+                  0,
+                  16,
+                  32,
+                ),
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -484,27 +570,34 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
                     Row(
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius:
+                              BorderRadius.circular(10),
                           child: SizedBox(
                             height: 56,
                             width: 56,
                             child: _image != null
-                                ? Image.file(_image!, fit: BoxFit.cover)
+                                ? Image.file(
+                                    _image!,
+                                    fit: BoxFit.cover,
+                                  )
                                 : null,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _latitude != null && _longitude != null
+                                _latitude != null &&
+                                        _longitude != null
                                     ? 'GPS: ${_latitude!.toStringAsFixed(4)}°, ${_longitude!.toStringAsFixed(4)}°'
                                     : 'Defect photo · Geo-tagged',
                                 style: const TextStyle(
                                   fontSize: 13,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight:
+                                      FontWeight.w800,
                                   color: AppColors.ink,
                                 ),
                               ),
@@ -529,14 +622,21 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
                         Expanded(
                           child: OutlinedButton(
                             style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(44),
-                              backgroundColor: AppColors.slate100,
+                              minimumSize:
+                                  const Size.fromHeight(44),
+                              backgroundColor:
+                                  AppColors.slate100,
                               side: BorderSide.none,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius:
+                                    BorderRadius.circular(
+                                      10,
+                                    ),
                               ),
                             ),
-                            onPressed: _isUploading ? null : _retake,
+                            onPressed: _isUploading
+                                ? null
+                                : _retake,
                             child: const Text(
                               'Retake',
                               style: TextStyle(
@@ -554,9 +654,13 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
                               backgroundColor: isLast
                                   ? AppColors.errorRed
                                   : AppColors.navy,
-                              minimumSize: const Size.fromHeight(44),
+                              minimumSize:
+                                  const Size.fromHeight(44),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius:
+                                    BorderRadius.circular(
+                                      10,
+                                    ),
                               ),
                             ),
                             onPressed: _isUploading
@@ -566,16 +670,21 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
                                 ? const SizedBox(
                                     height: 16,
                                     width: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
+                                    child:
+                                        CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color:
+                                              Colors.white,
+                                        ),
                                   )
                                 : Text(
-                                    isLast ? 'Submit Defect' : 'Next Capture',
+                                    isLast
+                                        ? 'Submit Defect'
+                                        : 'Next Capture',
                                     style: const TextStyle(
                                       color: Colors.white,
-                                      fontWeight: FontWeight.w800,
+                                      fontWeight:
+                                          FontWeight.w800,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -588,18 +697,22 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
               ),
             ),
 
-          if (_captured && _latitude != null && !_isUploading)
+          if (_captured &&
+              _latitude != null &&
+              !_isUploading)
             Positioned(
               left: 16,
               bottom: 180,
               right: 16,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween,
                 children: [
                   _gpsTag(
                     '${_latitude!.toStringAsFixed(4)}°, ${_longitude!.toStringAsFixed(4)}°',
                   ),
-                  if (_capturedTime != null) _gpsTag(_capturedTime!),
+                  if (_capturedTime != null)
+                    _gpsTag(_capturedTime!),
                 ],
               ),
             ),
@@ -608,25 +721,32 @@ class _DefectCapturePageState extends State<DefectCapturePage> {
     );
   }
 
-  Widget _glassButton({required IconData icon, required VoidCallback onTap}) =>
-      InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
-          height: 40,
-          width: 40,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.35),
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: Icon(icon, color: Colors.white, size: 20),
+  Widget _glassButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(999),
+    child: Container(
+      height: 40,
+      width: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
         ),
-      );
+      ),
+      child: Icon(icon, color: Colors.white, size: 20),
+    ),
+  );
 
   Widget _gpsTag(String text) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    padding: const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 5,
+    ),
     decoration: BoxDecoration(
       color: Colors.black.withValues(alpha: 0.55),
       borderRadius: BorderRadius.circular(8),
@@ -668,18 +788,26 @@ class _DefectSubmittedSheet extends StatelessWidget {
             width: 56,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: isOffline ? AppColors.amber50 : AppColors.red50,
+              color: isOffline
+                  ? AppColors.amber50
+                  : AppColors.red50,
               shape: BoxShape.circle,
             ),
             child: Icon(
-              isOffline ? Icons.cloud_off_rounded : Icons.warning_rounded,
-              color: isOffline ? AppColors.amber : AppColors.errorRed,
+              isOffline
+                  ? Icons.cloud_off_rounded
+                  : Icons.warning_rounded,
+              color: isOffline
+                  ? AppColors.amber
+                  : AppColors.errorRed,
               size: 30,
             ),
           ),
           const SizedBox(height: 16),
           Text(
-            isOffline ? 'Defect Queued for Sync' : 'Defect Logged Successfully',
+            isOffline
+                ? 'Defect Queued for Sync'
+                : 'Defect Logged Successfully',
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -690,7 +818,10 @@ class _DefectSubmittedSheet extends StatelessWidget {
           Text(
             '${item.business} · $inspectionId',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: AppColors.slate),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.slate,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -698,7 +829,10 @@ class _DefectSubmittedSheet extends StatelessWidget {
                 ? 'Defect evidence saved locally. Please sync when online.'
                 : 'Defect evidence geo-tagged and marked failed.',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: AppColors.slate),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.slate,
+            ),
           ),
           const SizedBox(height: 24),
           SizedBox(

@@ -20,17 +20,17 @@ class _InspectionDetailPageState extends State<InspectionDetailPage> {
     setState(() => _isVerifying = true);
     try {
       final authService = LmoAuthService();
-      final payload = await authService.verifyInspectorForField(
+      final success = await authService.verifyInspectorForField(
         widget.inspectionId,
         "LMO_OFFICER_01",
       );
 
       if (!mounted) return;
 
-      if (payload != null) {
+      if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Inspector Verified. Generating Audit Trail...'),
+            content: Text('Inspector Verified Successfully.'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -39,7 +39,6 @@ class _InspectionDetailPageState extends State<InspectionDetailPage> {
           MaterialPageRoute(
             builder: (_) => ChecklistPage(
               inspectionId: widget.inspectionId,
-              auditTrailData: payload,
             ),
           ),
         );

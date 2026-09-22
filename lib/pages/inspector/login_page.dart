@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/lmo_auth_provider.dart';
 import '../../theme/colors.dart';
 import '../../widgets/common.dart';
 import '../../routes.dart';
-import '../../services/lmo_auth_service.dart';
+import '../../services/socket_service.dart';
 
 class InspectorLoginPage extends StatefulWidget {
   const InspectorLoginPage({super.key});
@@ -95,7 +97,7 @@ class _InspectorLoginPageState extends State<InspectorLoginPage> {
             const SizedBox(height: 24),
             AppField(
               label: 'Employee ID',
-              placeholder: 'LMO-MP-1048',
+              placeholder: 'eg:- LMO-MP-1048',
               controller: _id,
             ),
             const SizedBox(height: 16),
@@ -112,36 +114,68 @@ class _InspectorLoginPageState extends State<InspectorLoginPage> {
               obscureText: true,
             ),
             const SizedBox(height: 24),
-            PrimaryButton(
-              onPressed: () async {
-                final authService = LmoAuthService();
-                final success = await authService.handlePostLoginEnrollment();
+            Consumer<LmoAuthProvider>(
+              builder: (context, auth, _) {
+                return PrimaryButton(
+                  onPressed: auth.isLoading
+                      ? null
+                      : () async {
+                          final success = await auth.login(_id.text, _password.text);
 
-                if (!mounted) return;
+                          if (!mounted) return;
 
-                if (success) {
-                  Navigator.of(
-                    context,
-                  ).pushNamedAndRemoveUntil(Routes.inspectorHome, (r) => false);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Biometric enrollment failed. Please try again.',
-                      ),
-                      backgroundColor: AppColors.errorRed,
-                    ),
-                  );
-                }
+                          if (success) {
+                            if (!auth.fingerprintRegistered) {
+                              final registered = await auth.registerBiometrics();
+                              if (!mounted) return;
+                              if (registered) {
+                                SocketService().joinOfficerRoom(auth.userId!);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Biometric Identity Locked Successfully!'),
+                                    backgroundColor: AppColors.success,
+                                  ),
+                                );
+                                Navigator.of(context).pushNamedAndRemoveUntil(Routes.inspectorHome, (r) => false);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(auth.error ?? 'Biometric enrollment failed.'),
+                                    backgroundColor: AppColors.errorRed,
+                                  ),
+                                );
+                              }
+                            } else {
+                              SocketService().joinOfficerRoom(auth.userId!);
+                              Navigator.of(context).pushNamedAndRemoveUntil(Routes.inspectorHome, (r) => false);
+                            }
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(auth.error ?? 'Login failed. Please try again.'),
+                                backgroundColor: AppColors.errorRed,
+                              ),
+                            );
+                          }
+                        },
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (auth.isLoading)
+                        const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      else ...[
+                        const Text('Continue'),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_forward),
+                      ],
+                    ],
+                  ),
+                );
               },
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('Continue'),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward),
-                ],
-              ),
             ),
           ],
         ),

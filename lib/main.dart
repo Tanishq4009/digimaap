@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'providers/lmo_auth_provider.dart';
 import 'services/socket_service.dart';
 import 'routes.dart';
 import 'theme/colors.dart';
@@ -67,58 +69,63 @@ class _EMaapAppState extends State<EMaapApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: navigatorKey,
-      title: 'DigiMaap · Legal Metrology',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: AppColors.background,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppColors.navy,
-          primary: AppColors.navy,
-          secondary: AppColors.saffron,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LmoAuthProvider()),
+      ],
+      child: MaterialApp(
+        navigatorKey: navigatorKey,
+        title: 'DigiMaap · Legal Metrology',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          scaffoldBackgroundColor: AppColors.background,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: AppColors.navy,
+            primary: AppColors.navy,
+            secondary: AppColors.saffron,
+          ),
+          fontFamily: 'Intel',
         ),
-        fontFamily: 'Intel',
-      ),
-      initialRoute: Routes.entry,
-      routes: {
-        Routes.entry: (_) => const EntryPage(),
-        Routes.consumerLogin: (_) =>
-            const ConsumerLoginPage(),
-        Routes.consumerHome: (_) =>
-            const ConsumerHomePage(),
-        Routes.consumerScan: (_) => const ScanPage(),
-        Routes.consumerSearch: (_) =>
-            const SearchCertificatePage(),
-        Routes.consumerOffline: (_) =>
-            const ConsumerOfflinePage(),
-        Routes.consumerHistory: (_) =>
-            const ConsumerHistoryPage(),
-        Routes.consumerNotifications: (_) =>
-            const NotificationsPage(role: AppRole.consumer),
-        Routes.consumerProfile: (_) => const ProfilePage(),
-        Routes.consumerReport: (_) => const ReportPage(),
-        Routes.help: (_) => const HelpPage(),
-        Routes.inspectorLogin: (_) =>
-            const InspectorLoginPage(),
-        Routes.inspectorHome: (_) =>
-            const InspectorHomePage(),
-        Routes.inspectorNotifications: (_) =>
-            const NotificationsPage(
-              role: AppRole.inspector,
-            ),
-        Routes.inspectorInspections: (_) =>
-            const InspectorHistoryPage(),
-        Routes.inspectorSync: (_) =>
-            const InspectorSyncPage(),
-        Routes.inspectorProfile: (_) =>
-            const InspectorProfilePage(),
-        Routes.inspectorQuery: (_) =>
-            const InspectorQueryPage(),
-      },
-      onUnknownRoute: (settings) => MaterialPageRoute(
-        builder: (_) => const NotFoundPage(),
+        initialRoute: Routes.entry,
+        routes: {
+          Routes.entry: (_) => const EntryPage(),
+          Routes.consumerLogin: (_) =>
+              const ConsumerLoginPage(),
+          Routes.consumerHome: (_) =>
+              const ConsumerHomePage(),
+          Routes.consumerScan: (_) => const ScanPage(),
+          Routes.consumerSearch: (_) =>
+              const SearchCertificatePage(),
+          Routes.consumerOffline: (_) =>
+              const ConsumerOfflinePage(),
+          Routes.consumerHistory: (_) =>
+              const ConsumerHistoryPage(),
+          Routes.consumerNotifications: (_) =>
+              const NotificationsPage(role: AppRole.consumer),
+          Routes.consumerProfile: (_) => const ProfilePage(),
+          Routes.consumerReport: (_) => const ReportPage(),
+          Routes.help: (_) => const HelpPage(),
+          Routes.inspectorLogin: (_) =>
+              const InspectorLoginPage(),
+          Routes.inspectorHome: (_) =>
+              const InspectorHomePage(),
+          Routes.inspectorNotifications: (_) =>
+              const NotificationsPage(
+                role: AppRole.inspector,
+              ),
+          Routes.inspectorInspections: (_) =>
+              const InspectorHistoryPage(),
+          Routes.inspectorSync: (_) =>
+              const InspectorSyncPage(),
+          Routes.inspectorProfile: (_) =>
+              const InspectorProfilePage(),
+          Routes.inspectorQuery: (_) =>
+              const InspectorQueryPage(),
+        },
+        onUnknownRoute: (settings) => MaterialPageRoute(
+          builder: (_) => const NotFoundPage(),
+        ),
       ),
     );
   }

@@ -1,10 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/lmo_auth_provider.dart';
 import '../theme/colors.dart';
 import '../widgets/common.dart';
 import '../routes.dart';
 
-class EntryPage extends StatelessWidget {
+class EntryPage extends StatefulWidget {
   const EntryPage({super.key});
+
+  @override
+  State<EntryPage> createState() => _EntryPageState();
+}
+
+class _EntryPageState extends State<EntryPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<LmoAuthProvider>().initAutoLogin(
+        context,
+        () {
+          if (mounted) {
+            Navigator.of(context).pushReplacementNamed(Routes.inspectorHome);
+          }
+        },
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
