@@ -146,6 +146,42 @@ class _InspectionDetailPageState extends State<InspectionDetailPage> {
                       ),
                     ],
                   ),
+                  if (item.previousCertificateUrl != null || item.manufacturerCertificateUrl != null) ...[
+                    const SizedBox(height: 16),
+                    const Divider(height: 1, color: AppColors.slate100),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'ATTACHED DOCUMENTS',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.slate,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (item.previousCertificateUrl != null)
+                          Expanded(
+                            child: _DocumentPreview(
+                              title: 'Previous Certificate',
+                              url: item.previousCertificateUrl!,
+                            ),
+                          ),
+                        if (item.previousCertificateUrl != null && item.manufacturerCertificateUrl != null)
+                          const SizedBox(width: 16),
+                        if (item.manufacturerCertificateUrl != null)
+                          Expanded(
+                            child: _DocumentPreview(
+                              title: 'Manufacturer Cert',
+                              url: item.manufacturerCertificateUrl!,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -168,6 +204,92 @@ class _InspectionDetailPageState extends State<InspectionDetailPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DocumentPreview extends StatelessWidget {
+  final String title;
+  final String url;
+
+  const _DocumentPreview({required this.title, required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: AppColors.ink,
+          ),
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (context) => Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: const EdgeInsets.all(16),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    InteractiveViewer(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          url,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.white,
+                              padding: const EdgeInsets.all(20),
+                              child: const Text('Failed to load image'),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+          child: Container(
+            height: 100,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppColors.slate100,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.slate.withValues(alpha: 0.2)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(
+                    child: Icon(Icons.broken_image_outlined, color: AppColors.slate),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

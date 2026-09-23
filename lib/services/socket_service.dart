@@ -19,11 +19,20 @@ class SocketService {
   ValueNotifier<List<NotificationItem>>?
   _notificationsNotifier;
   String? _officerUserId;
+  String? get officerUserId => _officerUserId;
+  String? _gatcId;
 
   void joinOfficerRoom(String userId) {
     _officerUserId = userId;
     if (socket != null && socket!.connected) {
       socket!.emit('join_officer_room', {'userId': userId});
+    }
+  }
+
+  void joinGatcRoom(String gatcId) {
+    _gatcId = gatcId;
+    if (socket != null && socket!.connected) {
+      socket!.emit('join_gatc_room', {'gatcId': gatcId});
     }
   }
 
@@ -53,11 +62,14 @@ class SocketService {
       if (_officerUserId != null) {
         socket!.emit('join_officer_room', {'userId': _officerUserId});
       }
+      if (_gatcId != null) {
+        socket!.emit('join_gatc_room', {'gatcId': _gatcId});
+      }
       return;
     }
 
     socket = i_o.io(
-      'http://192.168.1.7:8008',
+      'http://192.168.1.4:8008',
       i_o.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
@@ -69,15 +81,26 @@ class SocketService {
       if (_officerUserId != null) {
         socket!.emit('join_officer_room', {'userId': _officerUserId});
       }
+      if (_gatcId != null) {
+        socket!.emit('join_gatc_room', {'gatcId': _gatcId});
+      }
       sendAck();
     });
 
     socket!.on('officer_room_joined', (data) {
-      debugPrint('Successfully joined room: ${data['room']}');
+      debugPrint('Successfully joined officer room: ${data['room']}');
     });
 
     socket!.on('officer_room_error', (data) {
-      debugPrint('Failed to join room: ${data['message']}');
+      debugPrint('Failed to join officer room: ${data['message']}');
+    });
+
+    socket!.on('gatc_room_joined', (data) {
+      debugPrint('Successfully joined GATC room: ${data['room']}');
+    });
+
+    socket!.on('gatc_room_error', (data) {
+      debugPrint('Failed to join GATC room: ${data['message']}');
     });
 
     socket!.on('message', (raw) {
@@ -108,6 +131,8 @@ class SocketService {
             model: formData.modelNo,
             serial: formData.instrumentSerialNumber,
             accuracyClass: formData.accuracyClass,
+            applicationId: inner['applicationId']?.toString(),
+            assignedOfficerId: inner['assignedOfficerId']?.toString(),
           );
 
           // Store expected location from form so seal page can verify proximity
@@ -148,6 +173,66 @@ class SocketService {
           }
         } catch (e) {
           debugPrint('Error parsing form data: $e');
+        }
+      }
+    });
+
+    socket!.on('route:assigned', (raw) {
+      if (raw != null) {
+        try {
+          final data = Map<String, dynamic>.from(raw);
+          final String appNo = data['application_no'] ?? 'Unknown Application';
+          final String businessName = data['business_name'] ?? 'Unknown Business';
+          final String instrumentCategory = data['instrument_category'] ?? 'Unknown Instrument';
+          final String serialNo = data['serial_no'] ?? 'Pending details';
+          final String modelNo = data['model_no'] ?? 'Pending details';
+          final String? previousUrl = data['previousCertificateUrl'];
+          final String? manufacturerUrl = data['manufacturerCertificateUrl'];
+          final double? error = data['error'] != null ? double.tryParse(data['error'].toString()) : null;
+
+          debugPrint('New Route Assignment Received: $appNo');
+
+          final newNotification = NotificationItem(
+            'New Application Assigned: $appNo',
+            '$instrumentCategory at $businessName',
+            'Just now',
+            Icons.assignment_late_outlined,
+          );
+
+          if (_notificationsNotifier != null) {
+            _notificationsNotifier!.value = [
+              newNotification,
+              ..._notificationsNotifier!.value,
+            ];
+          }
+
+          final liveId = addLiveInspection(
+            business: businessName,
+            instrument: instrumentCategory,
+            model: modelNo,
+            serial: serialNo,
+            applicationId: appNo,
+            assignedOfficerId: data['assigned_id']?.toString(),
+            previousCertificateUrl: previousUrl,
+            manufacturerCertificateUrl: manufacturerUrl,
+            error: error,
+          );
+
+          String? currentRouteName;
+          _navKey?.currentState?.popUntil((route) {
+            if (route.isCurrent) {
+              currentRouteName = route.settings.name;
+            }
+            return true;
+          });
+
+          if (currentRouteName == Routes.inspectorHome) {
+            _showRouteAssignmentPopup(appNo, businessName, instrumentCategory, liveId);
+          } else {
+            debugPrint('New assignment received, but user is on $currentRouteName. Popup suppressed.');
+          }
+        } catch (e) {
+          debugPrint('Error parsing route:assigned data: $e');
         }
       }
     });
@@ -305,6 +390,99 @@ class SocketService {
                 );
               },
               child: const Text('Open inspection'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showRouteAssignmentPopup(
+    String appNo,
+    String businessName,
+    String instrumentCategory,
+    String inspectionId,
+  ) {
+    final context = _navKey?.currentContext;
+    if (context == null) return;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(
+                Icons.assignment_late_outlined,
+                color: AppColors.saffron,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'New Assignment!',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: AppColors.ink,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Application: $appNo',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Category: $instrumentCategory',
+                style: const TextStyle(
+                  color: AppColors.slate,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Business: $businessName',
+                style: const TextStyle(
+                  color: AppColors.slate,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Dismiss',
+                style: TextStyle(color: AppColors.slate),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.navy,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _navKey?.currentState?.push(
+                  MaterialPageRoute(
+                    builder: (_) => InspectionDetailPage(
+                      inspectionId: inspectionId,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('View Route'),
             ),
           ],
         );

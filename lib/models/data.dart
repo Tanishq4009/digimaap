@@ -116,6 +116,11 @@ class InspectionData {
   final String priority;
   final bool isLive; 
   final String? accuracyClass;
+  final String? applicationId;
+  final String? assignedOfficerId;
+  final String? previousCertificateUrl;
+  final String? manufacturerCertificateUrl;
+  final double? error;
 
   const InspectionData({
     required this.id,
@@ -130,6 +135,11 @@ class InspectionData {
     required this.priority,
     this.isLive = false, 
     this.accuracyClass,
+    this.applicationId,
+    this.assignedOfficerId,
+    this.previousCertificateUrl,
+    this.manufacturerCertificateUrl,
+    this.error,
   });
 }
 
@@ -197,6 +207,11 @@ String addLiveInspection({
   String address = 'Live verification request',
   String applicant = '—',
   String? accuracyClass,
+  String? applicationId,
+  String? assignedOfficerId,
+  String? previousCertificateUrl,
+  String? manufacturerCertificateUrl,
+  double? error,
 }) {
   final id =
       'LIVE-${DateTime.now().millisecondsSinceEpoch}';
@@ -213,6 +228,11 @@ String addLiveInspection({
     priority: 'NEW REQUEST',
     isLive: true,
     accuracyClass: accuracyClass,
+    applicationId: applicationId,
+    assignedOfficerId: assignedOfficerId,
+    previousCertificateUrl: previousCertificateUrl,
+    manufacturerCertificateUrl: manufacturerCertificateUrl,
+    error: error,
   );
   liveInspectionIds.value = [
     id,

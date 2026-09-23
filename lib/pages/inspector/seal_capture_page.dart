@@ -425,6 +425,8 @@ class _SealCapturePageState extends State<SealCapturePage> {
         'LMO_${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}_${widget.inspectionId.replaceAll('-', '')}';
 
     final sealDataJson = {
+      'applicationId': item.applicationId,
+      'inspectorId': item.assignedOfficerId ?? SocketService().officerUserId, // fallback
       'instrumentCategory': item.instrument,
       'instrumentSerialNumber': item.serial,
       'lat': _latitude ?? 0.0,

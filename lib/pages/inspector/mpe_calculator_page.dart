@@ -89,6 +89,15 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
       duration: const Duration(milliseconds: 400),
     );
     _scaleAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.elasticOut);
+
+    if (item.error != null) {
+      _calculated = true;
+      _mpe = item.error;
+      _observedError = item.error;
+      _passed = true;
+      _eCtrl.text = "1"; // Dummy to prevent parse errors
+      _animCtrl.forward(from: 0);
+    }
   }
 
   @override
@@ -141,6 +150,8 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
 
   @override
   Widget build(BuildContext context) {
+    final item = inspectionFor(widget.inspectionId);
+    
     return Shell(
       role: AppRole.inspector,
       title: 'MPE Calculator',
@@ -209,110 +220,112 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
             ),
             const SizedBox(height: 24),
 
-            // ── Input Section ─────────────────────────────
-            _SectionLabel(label: 'Instrument Parameters'),
-            const SizedBox(height: 12),
+            if (item.error == null) ...[
+              // ── Input Section ─────────────────────────────
+              _SectionLabel(label: 'Instrument Parameters'),
+              const SizedBox(height: 12),
 
-            // Accuracy class selector
-            _InputCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Accuracy class selector
+              _InputCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Accuracy Class',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.slate,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.slate100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.slate.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.lock_outline, size: 16, color: AppColors.slate),
+                          const SizedBox(width: 8),
+                          Text(
+                            _accuracyClass,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                          const Spacer(),
+                          const Text(
+                            'Fixed per verification data',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: AppColors.slate,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // e, Standard weight, Observed reading
+              Row(
                 children: [
-                  const Text(
-                    'Accuracy Class',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.slate,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: AppColors.slate100,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.slate.withValues(alpha: 0.2)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.lock_outline, size: 16, color: AppColors.slate),
-                        const SizedBox(width: 8),
-                        Text(
-                          _accuracyClass,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.ink,
-                          ),
-                        ),
-                        const Spacer(),
-                        const Text(
-                          'Fixed per verification data',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.slate,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ],
+                  Expanded(
+                    child: _InputCard(
+                      child: _NumField(
+                        label: 'Scale Interval',
+                        hint: 'e.g. 0.5',
+                        unit: 'kg',
+                        controller: _eCtrl,
+                        onChanged: (_) => _reset(),
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
-
-            // e, Standard weight, Observed reading
-            Row(
-              children: [
-                Expanded(
-                  child: _InputCard(
-                    child: _NumField(
-                      label: 'Scale Interval',
-                      hint: 'e.g. 0.5',
-                      unit: 'kg',
-                      controller: _eCtrl,
-                      onChanged: (_) => _reset(),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _InputCard(
+                      child: _NumField(
+                        label: 'Standard Weight (L)',
+                        hint: 'e.g. 10.000',
+                        unit: 'kg',
+                        controller: _stdWeightCtrl,
+                        onChanged: (_) => _reset(),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _InputCard(
-                    child: _NumField(
-                      label: 'Standard Weight (L)',
-                      hint: 'e.g. 10.000',
-                      unit: 'kg',
-                      controller: _stdWeightCtrl,
-                      onChanged: (_) => _reset(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _InputCard(
+                      child: _NumField(
+                        label: 'Observed Reading (I)',
+                        hint: 'e.g. 10.020',
+                        unit: 'kg',
+                        controller: _observedCtrl,
+                        onChanged: (_) => _reset(),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _InputCard(
-                    child: _NumField(
-                      label: 'Observed Reading (I)',
-                      hint: 'e.g. 10.020',
-                      unit: 'kg',
-                      controller: _observedCtrl,
-                      onChanged: (_) => _reset(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
             const SizedBox(height: 24),
 
             // ── Calculate Button ──────────────────────────
-            if (!_calculated)
+            if (!_calculated && item.error == null)
               PrimaryButton(
                 onPressed: _calculate,
                 child: const Row(

@@ -4,6 +4,7 @@ import '../../widgets/common.dart';
 import '../../models/data.dart';
 import 'mpe_calculator_page.dart';
 import 'defect_capture_page.dart';
+import 'seal_capture_page.dart';
 
 class ChecklistPage extends StatefulWidget {
   final String inspectionId;
@@ -243,13 +244,25 @@ class _ChecklistPageState extends State<ChecklistPage> {
                   );
                 } else {
                   // Normal MPE flow
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => MpeCalculatorPage(
-                        inspectionId: widget.inspectionId,
+                  final item = inspectionFor(widget.inspectionId);
+                  
+                  if (item.error == null) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => SealCapturePage(
+                          inspectionId: widget.inspectionId,
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  } else {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => MpeCalculatorPage(
+                          inspectionId: widget.inspectionId,
+                        ),
+                      ),
+                    );
+                  }
                 }
               },
               // For failures we change button text to make it obvious

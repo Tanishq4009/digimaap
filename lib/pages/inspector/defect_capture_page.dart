@@ -277,6 +277,8 @@ class _DefectCapturePageState
           'LMO_${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}_${widget.inspectionId.replaceAll('-', '')}';
       final item = inspectionFor(widget.inspectionId);
       final Map<String, dynamic> defectDataJson = {
+        'applicationId': item.applicationId,
+        'inspectorId': item.assignedOfficerId ?? SocketService().officerUserId,
         'instrumentCategory': item.instrument,
         'instrumentSerialNumber': item.serial,
         'lat': _latitude ?? 0.0,
