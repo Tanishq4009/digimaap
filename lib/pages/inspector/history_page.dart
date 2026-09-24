@@ -1,261 +1,544 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../../data/local/shared_prefs_helper.dart';
 import '../../theme/colors.dart';
 import '../../widgets/common.dart';
-import '../../models/data.dart';
-import 'inspection_detail_page.dart';
 
 class InspectorHistoryPage extends StatefulWidget {
   const InspectorHistoryPage({super.key});
 
   @override
-  State<InspectorHistoryPage> createState() => _InspectorHistoryPageState();
+  State<InspectorHistoryPage> createState() =>
+      _InspectorHistoryPageState();
 }
 
-class _InspectorHistoryPageState extends State<InspectorHistoryPage> {
-  final _query = TextEditingController();
-
-  // (id, label) pairs — id is what actually opens the right detail page.
-  static const staticRows = [
-    ('LM-260112-04', 'Sharma Fuel & Weighing Services · LM-260112-04'),
-    ('LM-260110-18', 'Bhopal Retail Mart · LM-260110-18'),
-    ('LM-260108-11', 'Bharat Weighing House · LM-260108-11'),
-  ];
+class _InspectorHistoryPageState
+    extends State<InspectorHistoryPage> {
+  final SharedPrefsHelper _prefsHelper =
+      SharedPrefsHelper();
+  final TextEditingController _searchController =
+      TextEditingController();
+  List<Map<String, dynamic>> _inspections = [];
+  bool _isLoading = true;
 
   @override
-  Widget build(BuildContext context) {
-    final q = _query.text.toLowerCase();
+  void initState() {
+    super.initState();
+    _loadRecentInspections();
+    _insertMockDataIfNeeded();
+    _searchController.addListener(() {
+      setState(() {});
+    });
+  }
 
-    return Shell(
-      role: AppRole.inspector,
-      title: 'Inspection history',
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(125),
-                    blurRadius: 12,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _insertMockDataIfNeeded() async {
+    final recent = await _prefsHelper
+        .getRecentInspections();
+    if (recent.isEmpty) {
+      final now = DateTime.now();
+      await _prefsHelper.insertInspection({
+        'inspection_id': 'INSP-2026-001',
+        'merchant_name': 'Ramesh Kirana Store',
+        'shop_address': '123 Market Rd, District A',
+        'instrument_category': 'Non-Automatic Weighing',
+        'serial_number': 'SN-987654321',
+        'accuracy_class': 'Class III',
+        'status': 'VERIFIED',
+        'completed_at': now
+            .subtract(const Duration(days: 1))
+            .toIso8601String(),
+        'visual_checklist_json': jsonEncode({
+          'Level Indicator': 'Pass',
+          'Zero Setting': 'Pass',
+        }),
+        'mpe_error_margin': 0.5,
+        'mpe_threshold': 1.0,
+        'defect_category': null,
+        'remarks': 'All good.',
+        'certificate_pdf_path': '/storage/mock/cert_1.pdf',
+        'photo_evidence_paths': jsonEncode([
+          '/storage/mock/photo_1.jpg',
+        ]),
+      });
+      await _prefsHelper.insertInspection({
+        'inspection_id': 'INSP-2026-002',
+        'merchant_name': 'Suresh Traders',
+        'shop_address': '456 Main St, District B',
+        'instrument_category': 'Fuel Dispenser',
+        'serial_number': 'FD-123456',
+        'accuracy_class': 'Class II',
+        'status': 'REJECTED_SCHEDULE_X',
+        'completed_at': now
+            .subtract(const Duration(days: 2))
+            .toIso8601String(),
+        'visual_checklist_json': jsonEncode({
+          'Display': 'Fail',
+          'Hose': 'Pass',
+        }),
+        'mpe_error_margin': 2.5,
+        'mpe_threshold': 1.0,
+        'defect_category': 'Short-Weighing',
+        'remarks':
+            'Display is faulty and error margin exceeds threshold.',
+        'certificate_pdf_path': null,
+        'photo_evidence_paths': jsonEncode([
+          '/storage/mock/photo_2.jpg',
+        ]),
+      });
+      _loadRecentInspections();
+    }
+  }
+
+  Future<void> _loadRecentInspections() async {
+    setState(() {
+      _isLoading = true;
+    });
+    final inspections = await _prefsHelper
+        .getRecentInspections();
+    setState(() {
+      _inspections = inspections;
+      _isLoading = false;
+    });
+  }
+
+  void _showInspectionDetails(
+    Map<String, dynamic> inspection,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isVerified =
+            inspection['status'] == 'VERIFIED';
+        final checklist =
+            jsonDecode(
+                  inspection['visual_checklist_json'] ??
+                      '{}',
+                )
+                as Map<String, dynamic>;
+
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(24),
+            ),
+          ),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(
+              context,
+            ).viewInsets.bottom,
+          ),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.75,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (context, scrollController) {
+              return ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.all(24.0),
                 children: [
-                  const Icon(
-                    Icons.search_rounded,
-                    color: AppColors.slate400,
-                    size: 17,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _query,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        isCollapsed: true,
-                        hintText: 'Search inspections',
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(
+                        bottom: 24,
                       ),
-                      style: const TextStyle(fontSize: 13),
+                      decoration: BoxDecoration(
+                        color: AppColors.slate200,
+                        borderRadius: BorderRadius.circular(
+                          2,
+                        ),
+                      ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            ValueListenableBuilder<List<String>>(
-              valueListenable: liveInspectionIds,
-              builder: (context, liveIds, _) {
-                return ValueListenableBuilder<List<String>>(
-                  valueListenable: inspectedInspectionIds,
-                  builder: (context, inspectedIds, _) {
-                    final liveRows = liveIds.map((id) {
-                      final item = inspectionFor(id);
-                      return (id, '${item.business} · $id');
-                    }).toList();
-
-                    final inspectedRows = inspectedIds.map((id) {
-                      final item = inspectionFor(id);
-                      return (id, '${item.business} · $id');
-                    }).toList();
-
-                    final allRows = [
-                      ...inspectedRows,
-                      ...liveRows,
-                      ...staticRows,
-                    ];
-                    final shown = allRows
-                        .where((r) => r.$2.toLowerCase().contains(q))
-                        .toList();
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (final row in shown) ...[
-                          _HistoryRow(
-                            id: row.$1,
-                            label: row.$2,
-                            isLive: liveIds.contains(row.$1),
-                            isInspected: inspectedIds.contains(row.$1),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        const Center(
-                          child: Text(
-                            'All assigned records loaded',
-                            style: TextStyle(
-                              color: AppColors.navy,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
+                  Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              inspection['merchant_name'] ??
+                                  'Unknown Merchant',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.ink,
+                              ),
                             ),
+                            const SizedBox(height: 4),
+                            Text(
+                              inspection['inspection_id'] ??
+                                  '',
+                              style: const TextStyle(
+                                color: AppColors.slate,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isVerified
+                              ? AppColors.green50
+                              : AppColors.red50,
+                          borderRadius:
+                              BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isVerified
+                                ? AppColors.green100
+                                : AppColors.red100,
                           ),
                         ),
-                      ],
-                    );
-                  },
-                );
-              },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isVerified
+                                  ? Icons.check_circle
+                                  : Icons.cancel,
+                              color: isVerified
+                                  ? AppColors.success
+                                  : AppColors.errorRed,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isVerified
+                                  ? 'VERIFIED'
+                                  : 'REJECTED',
+                              style: TextStyle(
+                                color: isVerified
+                                    ? AppColors.success
+                                    : AppColors.errorRed,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Instrument Details',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.ink,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildDetailRow(
+                    'Category',
+                    inspection['instrument_category'] ??
+                        'N/A',
+                  ),
+                  _buildDetailRow(
+                    'Serial No',
+                    inspection['serial_number'] ?? 'N/A',
+                  ),
+                  _buildDetailRow(
+                    'Class',
+                    inspection['accuracy_class'] ?? 'N/A',
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Metrological Performance',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.ink,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildDetailRow(
+                    'Observed Error',
+                    '${inspection['mpe_error_margin']}%',
+                  ),
+                  _buildDetailRow(
+                    'Allowed MPE',
+                    '${inspection['mpe_threshold']}%',
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Visual Checklist',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.ink,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...checklist.entries.map(
+                    (e) => _buildDetailRow(
+                      e.key,
+                      e.value.toString(),
+                    ),
+                  ),
+                  if (!isVerified) ...[
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Rejection Info',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.errorRed,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDetailRow(
+                      'Defect Category',
+                      inspection['defect_category'] ??
+                          'N/A',
+                    ),
+                    _buildDetailRow(
+                      'Remarks',
+                      inspection['remarks'] ?? 'N/A',
+                    ),
+                  ],
+                  const SizedBox(height: 32),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.slate,
+                fontSize: 14,
+              ),
             ),
-          ],
-        ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: AppColors.ink,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
-}
-
-class _HistoryRow extends StatelessWidget {
-  final String id;
-  final String label;
-  final bool isLive;
-  final bool isInspected;
-  const _HistoryRow({
-    required this.id,
-    required this.label,
-    required this.isLive,
-    this.isInspected = false,
-  });
 
   @override
   Widget build(BuildContext context) {
-    final parts = label.split(' · ');
-    final Color borderColor = isLive
-        ? AppColors.errorRed
-        : isInspected
-        ? AppColors.success
-        : AppColors.slate200;
-    final Color iconBg = isLive
-        ? AppColors.red50
-        : isInspected
-        ? AppColors.green50
-        : AppColors.green50;
-    final Color iconColor = isLive ? AppColors.errorRed : AppColors.success;
-    final IconData iconData = isLive
-        ? Icons.bolt_rounded
-        : isInspected
-        ? Icons.verified_rounded
-        : Icons.fact_check_outlined;
+    final query = _searchController.text.toLowerCase();
+    final shown = _inspections.where((e) {
+      final merchant = (e['merchant_name'] ?? '')
+          .toLowerCase();
+      final serial = (e['serial_number'] ?? '')
+          .toLowerCase();
+      return merchant.contains(query) ||
+          serial.contains(query);
+    }).toList();
 
-    return InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => InspectionDetailPage(inspectionId: id),
-        ),
-      ),
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: isLive
-                  ? AppColors.errorRed.withAlpha(150)
-                  : Colors.black.withAlpha(40),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
+    return Shell(
+      role: AppRole.inspector,
+      title: 'Inspection History',
+      child: Column(
+        children: [
+          Container(
+            color: AppColors.navy,
+            padding: const EdgeInsets.fromLTRB(
+              20,
+              10,
+              20,
+              20,
             ),
-          ],
-          border: (isLive || isInspected)
-              ? Border.all(color: borderColor, width: 1.5)
-              : null,
-        ),
-        child: Row(
-          children: [
-            Container(
-              height: 40,
-              width: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(12),
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'Search merchant or serial...',
+                hintStyle: const TextStyle(
+                  color: AppColors.slate400,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.slate,
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 0,
+                  horizontal: 16,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
               ),
-              child: Icon(iconData, color: iconColor, size: 19),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          parts[0],
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.ink,
-                          ),
-                        ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(),
+                  )
+                : shown.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No history found.',
+                      style: TextStyle(
+                        color: AppColors.slate,
+                        fontSize: 16,
                       ),
-                      if (isInspected)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.only(
+                      top: 20,
+                      left: 20,
+                      right: 20,
+                      bottom: 100,
+                    ), // extra padding for bottom nav
+                    itemCount: shown.length,
+                    itemBuilder: (context, index) {
+                      final inspection = shown[index];
+                      final isVerified =
+                          inspection['status'] ==
+                          'VERIFIED';
+
+                      return InkWell(
+                        onTap: () => _showInspectionDetails(
+                          inspection,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          16,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.only(
+                            bottom: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.green50,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: const Text(
-                            'Inspected',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.success,
+                            color: Colors.white,
+                            borderRadius:
+                                BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppColors.slate200,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black
+                                    .withOpacity(0.02),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                height: 48,
+                                width: 48,
+                                decoration: BoxDecoration(
+                                  color: isVerified
+                                      ? AppColors.green50
+                                      : AppColors.red50,
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                        12,
+                                      ),
+                                ),
+                                child: Icon(
+                                  isVerified
+                                      ? Icons
+                                            .verified_rounded
+                                      : Icons
+                                            .cancel_outlined,
+                                  color: isVerified
+                                      ? AppColors.success
+                                      : AppColors.errorRed,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment
+                                          .start,
+                                  children: [
+                                    Text(
+                                      inspection['merchant_name'] ??
+                                          'Unknown',
+                                      style:
+                                          const TextStyle(
+                                            fontWeight:
+                                                FontWeight
+                                                    .bold,
+                                            fontSize: 15,
+                                            color: AppColors
+                                                .ink,
+                                          ),
+                                    ),
+                                    const SizedBox(
+                                      height: 4,
+                                    ),
+                                    Text(
+                                      '${inspection['instrument_category']} · ${inspection['status']}',
+                                      style:
+                                          const TextStyle(
+                                            fontSize: 13,
+                                            color: AppColors
+                                                .slate,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right,
+                                color: AppColors.slate400,
+                              ),
+                            ],
                           ),
                         ),
-                    ],
+                      );
+                    },
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    isLive
-                        ? 'Just now · Live request'
-                        : isInspected
-                        ? 'Seal submitted · Just now'
-                        : '${parts.length > 1 ? parts[1] : ''} · 10 Jan 2026',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.slate,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.slate400),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

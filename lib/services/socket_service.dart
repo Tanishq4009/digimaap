@@ -69,7 +69,7 @@ class SocketService {
     }
 
     socket = i_o.io(
-      'http://192.168.1.4:8008',
+      'http://10.233.223.104:8008',
       i_o.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
