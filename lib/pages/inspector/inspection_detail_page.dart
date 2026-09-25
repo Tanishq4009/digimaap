@@ -132,7 +132,6 @@ class _InspectionDetailPageState extends State<InspectionDetailPage> {
                     crossAxisSpacing: 16,
                     childAspectRatio: 2.6,
                     children: [
-                      InfoGridItem(label: 'Applicant', value: item.applicant),
                       InfoGridItem(label: 'Instrument', value: item.instrument),
                       InfoGridItem(label: 'Make / model', value: item.model),
                       InfoGridItem(label: 'Serial number', value: item.serial),
