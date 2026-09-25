@@ -12,7 +12,8 @@ class ApiException implements Exception {
 
 class LmoAuthService {
   final LocalAuthentication auth = LocalAuthentication();
-  final String baseUrl = 'http://192.168.1.2:8008';
+  final String baseUrl =
+      'https://emaap-web-portal.onrender.com';
 
   Future<Map<String, dynamic>> login(
     String employeeId,
