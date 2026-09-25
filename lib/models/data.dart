@@ -120,6 +120,8 @@ class InspectionData {
   final String? accuracyClass;
   final String? applicationId;
   final String? assignedOfficerId;
+  final String? assignedType;
+  final String? assignedTo;
   final String? previousCertificateUrl;
   final String? manufacturerCertificateUrl;
   final double? error;
@@ -139,6 +141,8 @@ class InspectionData {
     this.accuracyClass,
     this.applicationId,
     this.assignedOfficerId,
+    this.assignedType,
+    this.assignedTo,
     this.previousCertificateUrl,
     this.manufacturerCertificateUrl,
     this.error,
@@ -226,12 +230,15 @@ String addLiveInspection({
   String? accuracyClass,
   String? applicationId,
   String? assignedOfficerId,
+  String? assignedType,
+  String? assignedTo,
   String? previousCertificateUrl,
   String? manufacturerCertificateUrl,
   double? error,
+  String? time,
+  String? customId,
 }) {
-  final id =
-      'LIVE-${DateTime.now().millisecondsSinceEpoch}';
+  final id = customId ?? 'LIVE-${DateTime.now().millisecondsSinceEpoch}';
   inspections[id] = InspectionData(
     id: id,
     business: business,
@@ -240,13 +247,15 @@ String addLiveInspection({
     instrument: instrument,
     model: model,
     serial: serial,
-    time: 'Just now',
+    time: time ?? 'Just now',
     distance: '—',
     priority: 'NEW REQUEST',
     isLive: true,
     accuracyClass: accuracyClass,
     applicationId: applicationId,
     assignedOfficerId: assignedOfficerId,
+    assignedType: assignedType,
+    assignedTo: assignedTo,
     previousCertificateUrl: previousCertificateUrl,
     manufacturerCertificateUrl: manufacturerCertificateUrl,
     error: error,

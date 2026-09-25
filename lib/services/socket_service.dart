@@ -70,7 +70,7 @@ class SocketService {
     }
 
     socket = i_o.io(
-      'https://emaap-web-portal.onrender.com',
+      'http://192.168.1.2:8008',
       i_o.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
@@ -209,12 +209,12 @@ class SocketService {
           ? Map<String, dynamic>.from(outer['data'])
           : outer;
 
+      final String appId = data['app_id']?.toString() ?? '';
       final String appNo =
           data['application_no'] ??
           data['applicationNo'] ??
           data['applicationId'] ??
-          data['app_id'] ??
-          'Unknown Application';
+          (appId.isNotEmpty ? appId : 'Unknown Application');
       final String businessName =
           data['business_name'] ??
           data['businessName'] ??
@@ -233,6 +233,12 @@ class SocketService {
           data['model_no'] ??
           data['modelNo'] ??
           'Pending details';
+      final String? assignedType =
+          data['assigned_type']?.toString() ?? data['assignedType']?.toString();
+      final String? assignedId =
+          data['assigned_id']?.toString() ?? data['assignedId']?.toString();
+      final String? assignedTo =
+          data['assigned_to']?.toString() ?? data['assignedTo']?.toString();
       final String? previousUrl =
           data['previousCertificateUrl'];
       final String? manufacturerUrl =
@@ -241,14 +247,29 @@ class SocketService {
           ? double.tryParse(data['error'].toString())
           : null;
 
+      // Extract & format timestamp string
+      final String rawTimestamp = data['timestamp']?.toString() ?? '';
+      String formattedTime = 'Just now';
+      if (rawTimestamp.isNotEmpty) {
+        try {
+          final dt = DateTime.parse(rawTimestamp).toLocal();
+          final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+          final minute = dt.minute.toString().padLeft(2, '0');
+          final period = dt.hour >= 12 ? 'PM' : 'AM';
+          formattedTime = '$hour:$minute $period';
+        } catch (_) {
+          formattedTime = 'Just now';
+        }
+      }
+
       debugPrint(
-        '[$eventName] Parsed payload: appNo=$appNo, business=$businessName, MPE error=$error',
+        '[$eventName] Parsed payload: appNo=$appNo, business=$businessName, time=$formattedTime, MPE error=$error',
       );
 
       final newNotification = NotificationItem(
         'New Verification Request: $appNo',
         '$instrumentCategory at $businessName',
-        'Just now',
+        formattedTime,
         Icons.assignment_late_outlined,
       );
 
@@ -265,13 +286,15 @@ class SocketService {
         model: modelNo,
         serial: serialNo,
         applicationId: appNo,
-        assignedOfficerId:
-            data['assigned_id']?.toString() ??
-            data['assigned_to']?.toString() ??
-            data['assignedOfficerId']?.toString(),
+        assignedOfficerId: assignedId ?? assignedTo,
+        assignedType: assignedType,
+        assignedTo: assignedTo,
+        applicant: assignedTo ?? '—',
         previousCertificateUrl: previousUrl,
         manufacturerCertificateUrl: manufacturerUrl,
         error: error,
+        time: formattedTime,
+        customId: appId.isNotEmpty ? appId : null,
       );
 
       final lat = (data['lat'] as num?)?.toDouble() ?? 0.0;

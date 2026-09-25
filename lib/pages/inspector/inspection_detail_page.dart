@@ -95,16 +95,42 @@ class _InspectionDetailPageState extends State<InspectionDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '${item.priority} ASSIGNMENT',
-                    style: const TextStyle(
-                      color: AppColors.saffron,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.orange50,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          item.priority,
+                          style: const TextStyle(
+                            color: AppColors.saffron,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        'ID: ${item.id}',
+                        maxLines: 2,
+                        softWrap: true,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.slate,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
                     item.business,
                     style: const TextStyle(
@@ -113,13 +139,25 @@ class _InspectionDetailPageState extends State<InspectionDetailPage> {
                       color: AppColors.ink,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${item.address} · ${item.distance}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.slate,
-                    ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: 14,
+                        color: AppColors.slate,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          item.address,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.slate,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   const Divider(height: 1, color: AppColors.slate100),
@@ -132,16 +170,29 @@ class _InspectionDetailPageState extends State<InspectionDetailPage> {
                     crossAxisSpacing: 16,
                     childAspectRatio: 2.6,
                     children: [
-                      InfoGridItem(label: 'Instrument', value: item.instrument),
-                      InfoGridItem(label: 'Make / model', value: item.model),
-                      InfoGridItem(label: 'Serial number', value: item.serial),
                       InfoGridItem(
-                        label: 'Scheduled',
-                        value: '12 Jan 2026 · ${item.time}',
+                        label: 'Instrument',
+                        value: item.instrument,
                       ),
-                      const InfoGridItem(
-                        label: 'Last certificate',
-                        value: 'LM/DL/2025/00918',
+                      InfoGridItem(
+                        label: 'Make / model',
+                        value: item.model,
+                      ),
+                      InfoGridItem(
+                        label: 'Serial number',
+                        value: item.serial,
+                      ),
+                      InfoGridItem(
+                        label: 'Application No',
+                        value: item.applicationId ?? item.id,
+                      ),
+                      InfoGridItem(
+                        label: 'Request time',
+                        value: item.time,
+                      ),
+                      InfoGridItem(
+                        label: 'Assigned to',
+                        value: item.assignedTo ?? item.assignedOfficerId ?? 'LMO Officer',
                       ),
                     ],
                   ),
