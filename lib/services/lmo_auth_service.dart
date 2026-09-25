@@ -12,7 +12,7 @@ class ApiException implements Exception {
 
 class LmoAuthService {
   final LocalAuthentication auth = LocalAuthentication();
-  final String baseUrl = 'http://10.233.223.104:8008';
+  final String baseUrl = 'http://192.168.1.2:8008';
 
   Future<Map<String, dynamic>> login(
     String employeeId,

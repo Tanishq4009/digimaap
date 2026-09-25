@@ -4,7 +4,6 @@ import 'package:socket_io_client/socket_io_client.dart'
     as i_o;
 import '../routes.dart';
 import '../theme/colors.dart';
-import '../models/verification_form.dart';
 import '../models/data.dart';
 import '../pages/inspector/inspection_detail_page.dart';
 
@@ -60,7 +59,9 @@ class SocketService {
         'Socket is already connected: ${socket!.id}',
       );
       if (_officerUserId != null) {
-        socket!.emit('join_officer_room', {'userId': _officerUserId});
+        socket!.emit('join_officer_room', {
+          'userId': _officerUserId,
+        });
       }
       if (_gatcId != null) {
         socket!.emit('join_gatc_room', {'gatcId': _gatcId});
@@ -69,7 +70,7 @@ class SocketService {
     }
 
     socket = i_o.io(
-      'http://10.233.223.104:8008',
+      'http://192.168.1.2:8008',
       i_o.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
@@ -79,7 +80,9 @@ class SocketService {
     socket!.onConnect((_) {
       debugPrint('Connected: ${socket!.id}');
       if (_officerUserId != null) {
-        socket!.emit('join_officer_room', {'userId': _officerUserId});
+        socket!.emit('join_officer_room', {
+          'userId': _officerUserId,
+        });
       }
       if (_gatcId != null) {
         socket!.emit('join_gatc_room', {'gatcId': _gatcId});
@@ -88,151 +91,76 @@ class SocketService {
     });
 
     socket!.on('officer_room_joined', (data) {
-      debugPrint('Successfully joined officer room: ${data['room']}');
+      debugPrint(
+        'Successfully joined officer room: ${data['room']}',
+      );
     });
 
     socket!.on('officer_room_error', (data) {
-      debugPrint('Failed to join officer room: ${data['message']}');
+      debugPrint(
+        'Failed to join officer room: ${data['message']}',
+      );
     });
 
     socket!.on('gatc_room_joined', (data) {
-      debugPrint('Successfully joined GATC room: ${data['room']}');
+      debugPrint(
+        'Successfully joined GATC room: ${data['room']}',
+      );
     });
 
     socket!.on('gatc_room_error', (data) {
-      debugPrint('Failed to join GATC room: ${data['message']}');
+      debugPrint(
+        'Failed to join GATC room: ${data['message']}',
+      );
     });
 
-    socket!.on('message', (raw) {
-      if (raw != null) {
-        try {
-          final outer = Map<String, dynamic>.from(raw);
-          final inner = outer.containsKey('data')
-              ? Map<String, dynamic>.from(outer['data'])
-              : outer;
+    socket!.on(
+      'message',
+      (raw) => _handleIncomingPayload(raw, 'message'),
+    );
+    socket!.on(
+      'route:assigned',
+      (raw) =>
+          _handleIncomingPayload(raw, 'route:assigned'),
+    );
+    socket!.on(
+      'new_application',
+      (raw) =>
+          _handleIncomingPayload(raw, 'new_application'),
+    );
 
-          VerificationForm formData =
-              VerificationForm.fromJson(inner);
-
-          debugPrint(
-            'Form Received successfully from Server!',
-          );
-          debugPrint(
-            'Manufacturer: ${formData.manufacturerName}',
-          );
-          debugPrint(
-            'Serial No: ${formData.instrumentSerialNumber}',
-          );
-          debugPrint('Class: ${formData.accuracyClass}');
-
-          final liveId = addLiveInspection(
-            business: formData.manufacturerName,
-            instrument: formData.instrumentCategory,
-            model: formData.modelNo,
-            serial: formData.instrumentSerialNumber,
-            accuracyClass: formData.accuracyClass,
-            applicationId: inner['applicationId']?.toString(),
-            assignedOfficerId: inner['assignedOfficerId']?.toString(),
-          );
-
-          // Store expected location from form so seal page can verify proximity
-          storeInspectionLocation(
-            liveId,
-            formData.lat,
-            formData.long,
-          );
-
-          final newNotification = NotificationItem(
-            'New Verification Task',
-            '${formData.instrumentCategory} at ${formData.manufacturerName}',
-            'Just now',
-            Icons.assignment_late_outlined,
-          );
-
-          if (_notificationsNotifier != null) {
-            _notificationsNotifier!.value = [
-              newNotification,
-              ..._notificationsNotifier!.value,
-            ];
-          }
-
-          String? currentRouteName;
-          _navKey?.currentState?.popUntil((route) {
-            if (route.isCurrent) {
-              currentRouteName = route.settings.name;
-            }
-            return true;
-          });
-
-          if (currentRouteName == Routes.inspectorHome) {
-            _showLmoAlertPopup(formData, liveId);
-          } else {
-            debugPrint(
-              'New task received, but user is on $currentRouteName. Popup suppressed.',
-            );
-          }
-        } catch (e) {
-          debugPrint('Error parsing form data: $e');
-        }
-      }
-    });
-
-    socket!.on('route:assigned', (raw) {
+    socket!.on('certificate_generated', (raw) {
       if (raw != null) {
         try {
           final data = Map<String, dynamic>.from(raw);
-          final String appNo = data['application_no'] ?? 'Unknown Application';
-          final String businessName = data['business_name'] ?? 'Unknown Business';
-          final String instrumentCategory = data['instrument_category'] ?? 'Unknown Instrument';
-          final String serialNo = data['serial_no'] ?? 'Pending details';
-          final String modelNo = data['model_no'] ?? 'Pending details';
-          final String? previousUrl = data['previousCertificateUrl'];
-          final String? manufacturerUrl = data['manufacturerCertificateUrl'];
-          final double? error = data['error'] != null ? double.tryParse(data['error'].toString()) : null;
+          final String status =
+              data['status'] ?? 'APPROVED_CHECKLIST';
+          final String appId =
+              data['applicationId'] ??
+              data['applicationNo'] ??
+              '';
+          final String serial =
+              data['instrumentSerialNumber'] ?? '';
 
-          debugPrint('New Route Assignment Received: $appNo');
-
-          final newNotification = NotificationItem(
-            'New Application Assigned: $appNo',
-            '$instrumentCategory at $businessName',
-            'Just now',
-            Icons.assignment_late_outlined,
+          debugPrint(
+            '[SOCKET] certificate_generated received: status=$status, appId=$appId, serial=$serial',
           );
 
-          if (_notificationsNotifier != null) {
-            _notificationsNotifier!.value = [
-              newNotification,
-              ..._notificationsNotifier!.value,
-            ];
-          }
-
-          final liveId = addLiveInspection(
-            business: businessName,
-            instrument: instrumentCategory,
-            model: modelNo,
-            serial: serialNo,
-            applicationId: appNo,
-            assignedOfficerId: data['assigned_id']?.toString(),
-            previousCertificateUrl: previousUrl,
-            manufacturerCertificateUrl: manufacturerUrl,
-            error: error,
+          final targetId = _findMatchingInspectionId(
+            appId,
+            serial,
           );
-
-          String? currentRouteName;
-          _navKey?.currentState?.popUntil((route) {
-            if (route.isCurrent) {
-              currentRouteName = route.settings.name;
+          if (targetId != null) {
+            if (status == 'APPROVED_CHECKLIST') {
+              markInspectionDone(targetId);
+            } else if (status == 'FAILED_CHECKLIST') {
+              markInspectionRejected(targetId);
             }
-            return true;
-          });
-
-          if (currentRouteName == Routes.inspectorHome) {
-            _showRouteAssignmentPopup(appNo, businessName, instrumentCategory, liveId);
-          } else {
-            debugPrint('New assignment received, but user is on $currentRouteName. Popup suppressed.');
           }
         } catch (e) {
-          debugPrint('Error parsing route:assigned data: $e');
+          debugPrint(
+            'Error handling certificate_generated: $e',
+          );
         }
       }
     });
@@ -250,6 +178,132 @@ class SocketService {
     });
 
     socket!.connect();
+  }
+
+  String? _findMatchingInspectionId(
+    String appId,
+    String serial,
+  ) {
+    for (final entry in inspections.entries) {
+      if ((appId.isNotEmpty &&
+              entry.value.applicationId == appId) ||
+          (serial.isNotEmpty &&
+              entry.value.serial == serial) ||
+          entry.key == appId) {
+        return entry.key;
+      }
+    }
+    return appId.isNotEmpty
+        ? appId
+        : (serial.isNotEmpty ? serial : null);
+  }
+
+  void _handleIncomingPayload(
+    dynamic raw,
+    String eventName,
+  ) {
+    if (raw == null) return;
+    try {
+      final outer = Map<String, dynamic>.from(raw);
+      final data = outer.containsKey('data')
+          ? Map<String, dynamic>.from(outer['data'])
+          : outer;
+
+      final String appNo =
+          data['application_no'] ??
+          data['applicationNo'] ??
+          data['applicationId'] ??
+          data['app_id'] ??
+          'Unknown Application';
+      final String businessName =
+          data['business_name'] ??
+          data['businessName'] ??
+          data['manufacturerName'] ??
+          'Unknown Business';
+      final String instrumentCategory =
+          data['instrument_category'] ??
+          data['instrumentCategory'] ??
+          'Unknown Instrument';
+      final String serialNo =
+          data['serial_no'] ??
+          data['instrumentSerialNumber'] ??
+          data['serialNo'] ??
+          'Pending details';
+      final String modelNo =
+          data['model_no'] ??
+          data['modelNo'] ??
+          'Pending details';
+      final String? previousUrl =
+          data['previousCertificateUrl'];
+      final String? manufacturerUrl =
+          data['manufacturerCertificateUrl'];
+      final double? error = data['error'] != null
+          ? double.tryParse(data['error'].toString())
+          : null;
+
+      debugPrint(
+        '[$eventName] Parsed payload: appNo=$appNo, business=$businessName, MPE error=$error',
+      );
+
+      final newNotification = NotificationItem(
+        'New Verification Request: $appNo',
+        '$instrumentCategory at $businessName',
+        'Just now',
+        Icons.assignment_late_outlined,
+      );
+
+      if (_notificationsNotifier != null) {
+        _notificationsNotifier!.value = [
+          newNotification,
+          ..._notificationsNotifier!.value,
+        ];
+      }
+
+      final liveId = addLiveInspection(
+        business: businessName,
+        instrument: instrumentCategory,
+        model: modelNo,
+        serial: serialNo,
+        applicationId: appNo,
+        assignedOfficerId:
+            data['assigned_id']?.toString() ??
+            data['assigned_to']?.toString() ??
+            data['assignedOfficerId']?.toString(),
+        previousCertificateUrl: previousUrl,
+        manufacturerCertificateUrl: manufacturerUrl,
+        error: error,
+      );
+
+      final lat = (data['lat'] as num?)?.toDouble() ?? 0.0;
+      final lng =
+          (data['long'] as num?)?.toDouble() ??
+          (data['lng'] as num?)?.toDouble() ??
+          0.0;
+      if (lat != 0.0 || lng != 0.0) {
+        storeInspectionLocation(liveId, lat, lng);
+      }
+
+      String? currentRouteName;
+      _navKey?.currentState?.popUntil((route) {
+        if (route.isCurrent) {
+          currentRouteName = route.settings.name;
+        }
+        return true;
+      });
+
+      if (currentRouteName == Routes.inspectorHome) {
+        _showRouteAssignmentPopup(
+          appNo,
+          businessName,
+          instrumentCategory,
+          liveId,
+        );
+      }
+    } catch (e) {
+      debugPrint(
+        'Error parsing $eventName socket data: $e',
+      );
+    }
   }
 
   /// Emits the seal evidence JSON payload to the 'inspection_approved' channel.
@@ -286,6 +340,41 @@ class SocketService {
     }
   }
 
+  /// Emits the rejection certificate JSON payload to the 'inspection_approved' channel (status: FAILED_CHECKLIST) per app.ts rules.
+  void emitInspectionRejected(Map<String, dynamic> data) {
+    final payload = {
+      ...data,
+      'status': 'FAILED_CHECKLIST',
+      'sealImageUrls':
+          data['sealImageUrls'] ??
+          data['defectImageUrls'] ??
+          [],
+    };
+
+    debugPrint(
+      'Attempting to emit inspection_approved (FAILED_CHECKLIST) for SN: ${payload['instrumentSerialNumber']}',
+    );
+
+    if (socket != null && socket!.connected) {
+      socket!.emit('inspection_approved', payload);
+      socket!.emit('inspection_rejected', payload);
+      debugPrint(
+        'Successfully emitted rejection to server!',
+      );
+    } else {
+      debugPrint(
+        'Socket not connected yet. Connecting and attempting emit...',
+      );
+      if (socket == null) {
+        connect();
+      } else {
+        socket!.connect();
+      }
+      socket?.emit('inspection_approved', payload);
+      socket?.emit('inspection_rejected', payload);
+    }
+  }
+
   void emitBiometricAudit(Map<String, dynamic> data) {
     debugPrint('Attempting to emit biometric_audit...');
     if (socket != null && socket!.connected) {
@@ -304,97 +393,6 @@ class SocketService {
       }
       socket?.emit('biometric_audit', data);
     }
-  }
-
-  void _showLmoAlertPopup(
-    VerificationForm form,
-    String inspectionId,
-  ) {
-    final context = _navKey?.currentContext;
-    if (context == null) return;
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Row(
-            children: [
-              Icon(
-                Icons.notifications_active,
-                color: AppColors.saffron,
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'New Assignment',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                    color: AppColors.ink,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Category: ${form.instrumentCategory}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Manufacturer: ${form.manufacturerName}',
-                style: const TextStyle(
-                  color: AppColors.slate,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Model: ${form.modelNo} (${form.accuracyClass})',
-                style: const TextStyle(
-                  color: AppColors.slate,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Dismiss',
-                style: TextStyle(color: AppColors.slate),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.navy,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                _navKey?.currentState?.push(
-                  MaterialPageRoute(
-                    builder: (_) => InspectionDetailPage(
-                      inspectionId: inspectionId,
-                    ),
-                  ),
-                );
-              },
-              child: const Text('Open inspection'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   void _showRouteAssignmentPopup(

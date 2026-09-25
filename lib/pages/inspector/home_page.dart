@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../theme/colors.dart';
 import '../../widgets/common.dart';
@@ -5,6 +6,8 @@ import '../../models/data.dart';
 import '../../routes.dart';
 import 'inspection_detail_page.dart';
 import '../../services/connectivity_service.dart';
+import '../../data/local/shared_prefs_helper.dart';
+import 'schedule_x_notice_page.dart';
 
 class InspectorHomePage extends StatelessWidget {
   const InspectorHomePage({super.key});
@@ -160,20 +163,73 @@ class InspectorHomePage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  // NEW: live socket requests (if any) render on top, followed by
-                  // the two default sample inspections — all via the same card.
+                  // Listen to live + verified + rejected notifiers
                   ValueListenableBuilder<List<String>>(
                     valueListenable: liveInspectionIds,
                     builder: (context, liveIds, _) {
-                      final ids = [...liveIds, 'LM-260112-04', 'LM-260112-05'];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final id in ids) ...[
-                            _InspectionCard(item: inspectionFor(id)),
-                            const SizedBox(height: 12),
-                          ],
-                        ],
+                      return ValueListenableBuilder<List<String>>(
+                        valueListenable: inspectedInspectionIds,
+                        builder: (context, doneIds, _) {
+                          return ValueListenableBuilder<List<String>>(
+                            valueListenable: rejectedInspectionIds,
+                            builder: (context, rejectedIds, _) {
+                              final allIds = {...inspections.keys, ...liveIds}.toList();
+                              // Only remove VERIFIED ones — rejected ones STAY
+                              final visibleIds = allIds
+                                  .where((id) => !doneIds.contains(id))
+                                  .toList();
+
+                              if (visibleIds.isEmpty) {
+                                return Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(top: 8),
+                                  padding: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: AppColors.slate200),
+                                  ),
+                                  child: const Column(
+                                    children: [
+                                      Icon(Icons.inbox_outlined, color: AppColors.slate400, size: 36),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'No inspection requests right now',
+                                        style: TextStyle(
+                                          color: AppColors.ink,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'Live requests assigned via socket will appear here.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: AppColors.slate,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  for (final id in visibleIds) ...[
+                                    _InspectionCard(
+                                      item: inspectionFor(id),
+                                      isRejected: rejectedIds.contains(id),
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                ],
+                              );
+                            },
+                          );
+                        },
                       );
                     },
                   ),
@@ -226,18 +282,79 @@ class InspectorHomePage extends StatelessWidget {
 
 /// Single inspection card, shared by the live and static list.
 /// Draws a red outline + red "NEW REQUEST" badge for live items.
-class _InspectionCard extends StatelessWidget {
+/// For REJECTED_SCHEDULE_X items: shows deadline + hides Begin Inspection.
+class _InspectionCard extends StatefulWidget {
   final InspectionData item;
-  const _InspectionCard({required this.item});
+  final bool isRejected;
+  const _InspectionCard({required this.item, this.isRejected = false});
+
+  @override
+  State<_InspectionCard> createState() => _InspectionCardState();
+}
+
+class _InspectionCardState extends State<_InspectionCard> {
+  final _prefs = SharedPrefsHelper();
+  DateTime? _deadline;
+  bool _isPendingReinspection = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isRejected) _loadRejectionData();
+  }
+
+  @override
+  void didUpdateWidget(_InspectionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isRejected && !oldWidget.isRejected) _loadRejectionData();
+  }
+
+  Future<void> _loadRejectionData() async {
+    final data = await _prefs.getInspectionById(widget.item.id);
+    final deadlineStr = data?['rectification_deadline'];
+    final parsed = deadlineStr != null ? DateTime.tryParse(deadlineStr) : null;
+    if (mounted) {
+      setState(() {
+        _deadline = parsed ?? DateTime.now().add(const Duration(days: 7));
+        _isPendingReinspection = data?['reinspection_status'] == 'PENDING_REINSPECTION';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+    final isRejected = widget.isRejected;
+    final isPendingReinspection = _isPendingReinspection;
+    final deadline = _deadline;
+    final daysLeft = deadline != null ? deadline.difference(DateTime.now()).inDays : 0;
+
     return InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => InspectionDetailPage(inspectionId: item.id),
-        ),
-      ),
+      onTap: () {
+        if (isRejected) {
+          // Block inspection — show rejection notice dialog
+          showDialog(
+            context: context,
+            builder: (ctx) => _RejectionBlockDialog(
+              inspectionId: item.id,
+              businessName: item.business,
+              deadline: deadline,
+              onViewNotice: () {
+                Navigator.pop(ctx);
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ScheduleXNoticePage(inspectionId: item.id),
+                ));
+              },
+            ),
+          );
+          return;
+        }
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => InspectionDetailPage(inspectionId: item.id),
+          ),
+        );
+      },
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -248,14 +365,18 @@ class _InspectionCard extends StatelessWidget {
             BoxShadow(
               color: item.isLive
                   ? AppColors.errorRed.withAlpha(80)
-                  : Colors.black.withAlpha(40),
+                  : isRejected
+                      ? AppColors.errorRed.withAlpha(40)
+                      : Colors.black.withAlpha(40),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
           ],
           border: item.isLive
               ? Border.all(color: AppColors.errorRed, width: 1.5)
-              : null,
+              : isRejected
+                  ? Border.all(color: AppColors.errorRed.withAlpha(100), width: 1)
+                  : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,13 +443,17 @@ class _InspectionCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: item.isLive ? AppColors.red50 : AppColors.orange50,
+                    color: item.isLive
+                        ? AppColors.red50
+                        : isRejected
+                            ? AppColors.red50
+                            : AppColors.orange50,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    item.priority,
+                    isRejected ? 'REJECTED' : item.priority,
                     style: TextStyle(
-                      color: item.isLive
+                      color: item.isLive || isRejected
                           ? AppColors.errorRed
                           : AppColors.saffron,
                       fontSize: 9,
@@ -338,6 +463,60 @@ class _InspectionCard extends StatelessWidget {
                 ),
               ],
             ),
+
+            // ── Rejection Deadline Banner ────────────────────────────────────
+            if (isRejected && deadline != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: daysLeft <= 2 ? AppColors.red50 : AppColors.amber50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: daysLeft <= 2 ? AppColors.red200 : AppColors.amber200,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.timer_outlined,
+                      size: 14,
+                      color: daysLeft <= 2 ? AppColors.errorRed : AppColors.amber,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        daysLeft > 0
+                            ? '$daysLeft day${daysLeft == 1 ? '' : 's'} left for rectification (Schedule X)'
+                            : 'Deadline passed — Section 33 action pending',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: daysLeft <= 2 ? AppColors.errorRed : AppColors.amber,
+                        ),
+                      ),
+                    ),
+                    if (!isPendingReinspection)
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ScheduleXNoticePage(inspectionId: item.id),
+                          ),
+                        ),
+                        child: const Text(
+                          'View →',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.navy,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 14),
             const Divider(height: 1, color: AppColors.slate100),
             const SizedBox(height: 10),
@@ -360,24 +539,284 @@ class _InspectionCard extends StatelessWidget {
                     color: AppColors.slate,
                   ),
                 ),
-                const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Open',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.navy,
+                // "Begin Inspection" only if NOT rejected, OR if re-inspection applied
+                if (!isRejected || isPendingReinspection)
+                  const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Begin Inspection',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.navy,
+                        ),
+                      ),
+                      Icon(Icons.arrow_forward, size: 12, color: AppColors.navy),
+                    ],
+                  )
+                else
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ScheduleXNoticePage(inspectionId: item.id),
                       ),
                     ),
-                    Icon(Icons.arrow_forward, size: 12, color: AppColors.navy),
-                  ],
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'View Notice',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.errorRed,
+                          ),
+                        ),
+                        Icon(Icons.arrow_forward, size: 12, color: AppColors.errorRed),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Live Countdown Dialog ────────────────────────────────────────────────────
+
+class _RejectionBlockDialog extends StatefulWidget {
+  final String inspectionId;
+  final String businessName;
+  final DateTime? deadline;
+  final VoidCallback onViewNotice;
+
+  const _RejectionBlockDialog({
+    required this.inspectionId,
+    required this.businessName,
+    required this.deadline,
+    required this.onViewNotice,
+  });
+
+  @override
+  State<_RejectionBlockDialog> createState() => _RejectionBlockDialogState();
+}
+
+class _RejectionBlockDialogState extends State<_RejectionBlockDialog> {
+  late Duration _remaining;
+  late final _timer = _startTimer();
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = _calcRemaining();
+  }
+
+  Duration _calcRemaining() {
+    final target = widget.deadline ?? DateTime.now().add(const Duration(days: 7));
+    final diff = target.difference(DateTime.now());
+    return diff.isNegative ? Duration.zero : diff;
+  }
+
+  Timer _startTimer() {
+    return Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _remaining = _calcRemaining());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  String _pad(int n) => n.toString().padLeft(2, '0');
+
+  @override
+  Widget build(BuildContext context) {
+    final isExpired = _remaining == Duration.zero;
+    final days = _remaining.inDays;
+    final hours = _remaining.inHours % 24;
+    final minutes = _remaining.inMinutes % 60;
+    final seconds = _remaining.inSeconds % 60;
+
+    final timerColor = isExpired
+        ? AppColors.errorRed
+        : days <= 2
+            ? AppColors.errorRed
+            : AppColors.amber;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Icon
+            Container(
+              height: 64,
+              width: 64,
+              decoration: const BoxDecoration(
+                color: AppColors.red50,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.gavel_rounded, color: AppColors.errorRed, size: 32),
+            ),
+            const SizedBox(height: 16),
+
+            // Title
+            const Text(
+              'Inspection Blocked',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ink),
+            ),
+            const SizedBox(height: 8),
+
+            // Subtitle
+            Text(
+              isExpired
+                  ? 'The rectification deadline has passed.\nSection 33 violation may apply.'
+                  : 'This instrument was rejected under Schedule X.\nMerchant must rectify defects before re-inspection.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.slate, fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+
+            // Live Countdown
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+              decoration: BoxDecoration(
+                color: isExpired ? AppColors.red50 : (days <= 2 ? AppColors.red50 : AppColors.amber50),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isExpired ? AppColors.red200 : (days <= 2 ? AppColors.red200 : AppColors.amber200),
+                ),
+              ),
+              child: isExpired
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.error_outline, color: AppColors.errorRed, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Deadline Expired',
+                          style: TextStyle(
+                            color: AppColors.errorRed,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.timer_outlined, color: timerColor, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Time Remaining',
+                              style: TextStyle(
+                                color: timerColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _TimeBox(value: _pad(days), label: 'DAYS', color: timerColor),
+                            _TimeSep(color: timerColor),
+                            _TimeBox(value: _pad(hours), label: 'HRS', color: timerColor),
+                            _TimeSep(color: timerColor),
+                            _TimeBox(value: _pad(minutes), label: 'MIN', color: timerColor),
+                            _TimeSep(color: timerColor),
+                            _TimeBox(value: _pad(seconds), label: 'SEC', color: timerColor),
+                          ],
+                        ),
+                      ],
+                    ),
+            ),
+            const SizedBox(height: 24),
+
+            // Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close', style: TextStyle(color: AppColors.slate)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: widget.onViewNotice,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.navy,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'View Notice',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                  ),
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _TimeBox extends StatelessWidget {
+  final String value;
+  final String label;
+  final Color color;
+  const _TimeBox({required this.value, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: color),
+        ),
+        Text(
+          label,
+          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color, letterSpacing: 0.5),
+        ),
+      ],
+    );
+  }
+}
+
+class _TimeSep extends StatelessWidget {
+  final Color color;
+  const _TimeSep({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+      child: Text(
+        ':',
+        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: color),
       ),
     );
   }

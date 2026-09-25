@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../data/local/shared_prefs_helper.dart';
 import '../../theme/colors.dart';
 import '../../widgets/common.dart';
+import '../../models/data.dart';
 
 class InspectorHistoryPage extends StatefulWidget {
   const InspectorHistoryPage({super.key});
@@ -25,7 +26,6 @@ class _InspectorHistoryPageState
   void initState() {
     super.initState();
     _loadRecentInspections();
-    _insertMockDataIfNeeded();
     _searchController.addListener(() {
       setState(() {});
     });
@@ -37,63 +37,6 @@ class _InspectorHistoryPageState
     super.dispose();
   }
 
-  Future<void> _insertMockDataIfNeeded() async {
-    final recent = await _prefsHelper
-        .getRecentInspections();
-    if (recent.isEmpty) {
-      final now = DateTime.now();
-      await _prefsHelper.insertInspection({
-        'inspection_id': 'INSP-2026-001',
-        'merchant_name': 'Ramesh Kirana Store',
-        'shop_address': '123 Market Rd, District A',
-        'instrument_category': 'Non-Automatic Weighing',
-        'serial_number': 'SN-987654321',
-        'accuracy_class': 'Class III',
-        'status': 'VERIFIED',
-        'completed_at': now
-            .subtract(const Duration(days: 1))
-            .toIso8601String(),
-        'visual_checklist_json': jsonEncode({
-          'Level Indicator': 'Pass',
-          'Zero Setting': 'Pass',
-        }),
-        'mpe_error_margin': 0.5,
-        'mpe_threshold': 1.0,
-        'defect_category': null,
-        'remarks': 'All good.',
-        'certificate_pdf_path': '/storage/mock/cert_1.pdf',
-        'photo_evidence_paths': jsonEncode([
-          '/storage/mock/photo_1.jpg',
-        ]),
-      });
-      await _prefsHelper.insertInspection({
-        'inspection_id': 'INSP-2026-002',
-        'merchant_name': 'Suresh Traders',
-        'shop_address': '456 Main St, District B',
-        'instrument_category': 'Fuel Dispenser',
-        'serial_number': 'FD-123456',
-        'accuracy_class': 'Class II',
-        'status': 'REJECTED_SCHEDULE_X',
-        'completed_at': now
-            .subtract(const Duration(days: 2))
-            .toIso8601String(),
-        'visual_checklist_json': jsonEncode({
-          'Display': 'Fail',
-          'Hose': 'Pass',
-        }),
-        'mpe_error_margin': 2.5,
-        'mpe_threshold': 1.0,
-        'defect_category': 'Short-Weighing',
-        'remarks':
-            'Display is faulty and error margin exceeds threshold.',
-        'certificate_pdf_path': null,
-        'photo_evidence_paths': jsonEncode([
-          '/storage/mock/photo_2.jpg',
-        ]),
-      });
-      _loadRecentInspections();
-    }
-  }
 
   Future<void> _loadRecentInspections() async {
     setState(() {
@@ -361,21 +304,30 @@ class _InspectorHistoryPageState
 
   @override
   Widget build(BuildContext context) {
-    final query = _searchController.text.toLowerCase();
-    final shown = _inspections.where((e) {
-      final merchant = (e['merchant_name'] ?? '')
-          .toLowerCase();
-      final serial = (e['serial_number'] ?? '')
-          .toLowerCase();
-      return merchant.contains(query) ||
-          serial.contains(query);
-    }).toList();
+    return ValueListenableBuilder<List<String>>(
+      valueListenable: inspectedInspectionIds,
+      builder: (context, doneIds, child) {
+        _prefsHelper.getRecentInspections().then((data) {
+          if (mounted && data.length != _inspections.length) {
+            setState(() {
+              _inspections = data;
+              _isLoading = false;
+            });
+          }
+        });
 
-    return Shell(
-      role: AppRole.inspector,
-      title: 'Inspection History',
-      child: Column(
-        children: [
+        final query = _searchController.text.toLowerCase();
+        final shown = _inspections.where((e) {
+          final merchant = (e['merchant_name'] ?? '').toLowerCase();
+          final serial = (e['serial_number'] ?? '').toLowerCase();
+          return merchant.contains(query) || serial.contains(query);
+        }).toList();
+
+        return Shell(
+          role: AppRole.inspector,
+          title: 'Inspection History',
+          child: Column(
+            children: [
           Container(
             color: AppColors.navy,
             padding: const EdgeInsets.fromLTRB(
@@ -460,7 +412,7 @@ class _InspectorHistoryPageState
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black
-                                    .withOpacity(0.02),
+                                    .withValues(alpha: 0.02),
                                 blurRadius: 10,
                                 offset: const Offset(0, 2),
                               ),
@@ -540,6 +492,8 @@ class _InspectorHistoryPageState
           ),
         ],
       ),
+    );
+      },
     );
   }
 }

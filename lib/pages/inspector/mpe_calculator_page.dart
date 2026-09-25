@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import '../../theme/colors.dart';
 import '../../widgets/common.dart';
 import '../../models/data.dart';
+import '../../data/local/shared_prefs_helper.dart';
+import '../../services/socket_service.dart';
 import 'seal_capture_page.dart';
+import 'schedule_x_notice_page.dart';
 
 class _LoadBand {
   final double fromMultiples; // load ≥ fromMultiples * e
@@ -91,12 +94,7 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
     _scaleAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.elasticOut);
 
     if (item.error != null) {
-      _calculated = true;
       _mpe = item.error;
-      _observedError = item.error;
-      _passed = true;
-      _eCtrl.text = "1"; // Dummy to prevent parse errors
-      _animCtrl.forward(from: 0);
     }
   }
 
@@ -110,14 +108,15 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
   }
 
   void _calculate() {
-    final e = double.tryParse(_eCtrl.text.trim());
+    final item = inspectionFor(widget.inspectionId);
+    final e = double.tryParse(_eCtrl.text.trim()) ?? 1.0;
     final stdWeight = double.tryParse(_stdWeightCtrl.text.trim());
     final observed = double.tryParse(_observedCtrl.text.trim());
 
-    if (e == null || stdWeight == null || observed == null || e <= 0) {
+    if (stdWeight == null || observed == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please fill all fields correctly'),
+          content: Text('Please enter Standard Weight and Observed Reading'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -125,7 +124,7 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
     }
 
     final obsErr = (observed - stdWeight).abs();
-    final mpe = _lookupMpe(_accuracyClass, stdWeight, e);
+    final mpe = item.error ?? _lookupMpe(_accuracyClass, stdWeight, e);
     final passed = obsErr <= mpe;
 
     setState(() {
@@ -136,6 +135,55 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
     });
 
     _animCtrl.forward(from: 0);
+  }
+
+  Future<void> _issueScheduleXRejection() async {
+    final item = inspectionFor(widget.inspectionId);
+    final prefsHelper = SharedPrefsHelper();
+    final lmoId = item.assignedOfficerId ?? SocketService().officerUserId ?? 'UNKNOWN_LMO';
+    final mpeVal = _mpe?.toStringAsFixed(4) ?? '0.5';
+    final errVal = _observedError?.toStringAsFixed(4) ?? '0.0';
+    final tokenHash =
+        'REJ_${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}_${widget.inspectionId.replaceAll('-', '')}';
+
+    final rejectionDataJson = {
+      'applicationId': item.applicationId,
+      'inspectorId': lmoId,
+      'instrumentCategory': item.instrument,
+      'instrumentSerialNumber': item.serial,
+      'lat': 0.0,
+      'long': 0.0,
+      'defectReasons': [
+        'MPE Error Threshold Breached: Observed Error ($errVal kg) > Allowed MPE ($mpeVal kg)'
+      ],
+      'remarks': 'Instrument failed metrological accuracy test.',
+      'token_hash': tokenHash,
+      'status': 'REJECTED_SCHEDULE_X',
+      'rectification_deadline': DateTime.now().add(const Duration(days: 7)).toIso8601String(),
+      'timeStamp': DateTime.now().microsecondsSinceEpoch,
+    };
+
+    // Emit rejection payload over socket server
+    SocketService().emitInspectionRejected(rejectionDataJson);
+
+    await prefsHelper.issueScheduleXRejection(
+      inspectionId: widget.inspectionId,
+      defectReasons: [
+        'MPE Error Threshold Breached: Observed Error ($errVal kg) > Allowed MPE ($mpeVal kg)'
+      ],
+      lmoId: lmoId,
+      remarks: 'Instrument failed metrological accuracy test.',
+    );
+
+    markInspectionRejected(widget.inspectionId);
+
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => ScheduleXNoticePage(inspectionId: widget.inspectionId),
+      ),
+      (route) => route.isFirst,
+    );
   }
 
   void _reset() {
@@ -220,112 +268,138 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
             ),
             const SizedBox(height: 24),
 
-            if (item.error == null) ...[
-              // ── Input Section ─────────────────────────────
-              _SectionLabel(label: 'Instrument Parameters'),
-              const SizedBox(height: 12),
+            // ── Input Section ─────────────────────────────
+            _SectionLabel(label: 'Instrument Parameters'),
+            const SizedBox(height: 12),
 
-              // Accuracy class selector
-              _InputCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            if (item.error != null) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.blue50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.blue100),
+                ),
+                child: Row(
                   children: [
-                    const Text(
-                      'Accuracy Class',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.slate,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: AppColors.slate100,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.slate.withValues(alpha: 0.2)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.lock_outline, size: 16, color: AppColors.slate),
-                          const SizedBox(width: 8),
-                          Text(
-                            _accuracyClass,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.ink,
-                            ),
-                          ),
-                          const Spacer(),
-                          const Text(
-                            'Fixed per verification data',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: AppColors.slate,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
+                    const Icon(Icons.info_outline, color: AppColors.navy, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Allowed MPE Limit: ${item.error} kg (Received via Server Request)',
+                        style: const TextStyle(
+                          color: AppColors.navy,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-
-              // e, Standard weight, Observed reading
-              Row(
-                children: [
-                  Expanded(
-                    child: _InputCard(
-                      child: _NumField(
-                        label: 'Scale Interval',
-                        hint: 'e.g. 0.5',
-                        unit: 'kg',
-                        controller: _eCtrl,
-                        onChanged: (_) => _reset(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _InputCard(
-                      child: _NumField(
-                        label: 'Standard Weight (L)',
-                        hint: 'e.g. 10.000',
-                        unit: 'kg',
-                        controller: _stdWeightCtrl,
-                        onChanged: (_) => _reset(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _InputCard(
-                      child: _NumField(
-                        label: 'Observed Reading (I)',
-                        hint: 'e.g. 10.020',
-                        unit: 'kg',
-                        controller: _observedCtrl,
-                        onChanged: (_) => _reset(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ],
+
+            // Accuracy class selector
+            _InputCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Accuracy Class',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.slate,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.slate100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.slate.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.lock_outline, size: 16, color: AppColors.slate),
+                        const SizedBox(width: 8),
+                        Text(
+                          _accuracyClass,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Text(
+                          'Fixed per verification data',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.slate,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // e, Standard weight, Observed reading
+            Row(
+              children: [
+                Expanded(
+                  child: _InputCard(
+                    child: _NumField(
+                      label: 'Scale Interval (e)',
+                      hint: 'e.g. 0.5',
+                      unit: 'kg',
+                      controller: _eCtrl,
+                      onChanged: (_) => _reset(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _InputCard(
+                    child: _NumField(
+                      label: 'Standard Weight (L)',
+                      hint: 'e.g. 10.000',
+                      unit: 'kg',
+                      controller: _stdWeightCtrl,
+                      onChanged: (_) => _reset(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _InputCard(
+                    child: _NumField(
+                      label: 'Observed Reading (I)',
+                      hint: 'e.g. 10.020',
+                      unit: 'kg',
+                      controller: _observedCtrl,
+                      onChanged: (_) => _reset(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 24),
 
             // ── Calculate Button ──────────────────────────
-            if (!_calculated && item.error == null)
+            if (!_calculated)
               PrimaryButton(
                 onPressed: _calculate,
                 child: const Row(
@@ -352,7 +426,7 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
               ),
               const SizedBox(height: 20),
 
-              // PASS → continue; FAIL → go home
+              // PASS → continue; FAIL → issue Schedule X
               if (_passed!)
                 PrimaryButton(
                   onPressed: () {
@@ -376,8 +450,7 @@ class _MpeCalculatorPageState extends State<MpeCalculatorPage>
               else
                 _FailActionButtons(
                   onRecalculate: _reset,
-                  onGoHome: () =>
-                      Navigator.of(context).popUntil((r) => r.isFirst),
+                  onIssueScheduleX: _issueScheduleXRejection,
                 ),
             ],
           ],
@@ -652,17 +725,35 @@ class _ResultRow extends StatelessWidget {
 
 class _FailActionButtons extends StatelessWidget {
   final VoidCallback onRecalculate;
-  final VoidCallback onGoHome;
+  final VoidCallback onIssueScheduleX;
 
   const _FailActionButtons({
     required this.onRecalculate,
-    required this.onGoHome,
+    required this.onIssueScheduleX,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: onIssueScheduleX,
+            icon: const Icon(Icons.gavel_rounded, color: Colors.white),
+            label: const Text(
+              'Issue Schedule X Rejection Notice',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.errorRed,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: 0,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         PrimaryButton(
           secondary: true,
           onPressed: onRecalculate,
@@ -673,34 +764,6 @@ class _FailActionButtons extends StatelessWidget {
               SizedBox(width: 8),
               Text('Re-enter Readings'),
             ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: Material(
-            color: AppColors.errorRed,
-            borderRadius: BorderRadius.circular(14),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: onGoHome,
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.home_rounded, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text(
-                    'Mark Failed & Go to Home',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
         ),
       ],

@@ -12,6 +12,7 @@ import '../../services/socket_service.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/cloudinary_services.dart';
 import '../../services/image_cropper.dart';
+import '../../services/seal_scan_api_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Smart Overlay Painter — dark mask with a real transparent cutout window.
@@ -148,6 +149,8 @@ class _SealCapturePageState extends State<SealCapturePage> {
   File? _croppedImage; // what we show + upload — never the raw uncropped shot
   bool _captured = false;
   bool _uploading = false;
+  bool _isAnalyzingSeal = false;
+  bool _aiValidated = false;
   double? _latitude;
   double? _longitude;
   String? _capturedTime;
@@ -213,9 +216,6 @@ class _SealCapturePageState extends State<SealCapturePage> {
       final period = photoTime.hour >= 12 ? 'PM' : 'AM';
       final formattedTime = '$hour:$minute:$second $period';
 
-      // Crop down to exactly the cutout the user saw — this is what gets
-      // shown for review AND what gets uploaded, so nothing outside the
-      // guide shape ever leaves the device.
       final cropped = await ImageCropperService.cropImage(
         File(photo.path),
         _sealType,
@@ -237,6 +237,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
         _latitude = lat;
         _longitude = lng;
         _capturedTime = formattedTime;
+        _aiValidated = false;
       });
     } catch (e) {
       debugPrint('Error capturing image: $e');
@@ -249,7 +250,155 @@ class _SealCapturePageState extends State<SealCapturePage> {
     _latitude = null;
     _longitude = null;
     _capturedTime = null;
+    _aiValidated = false;
+    _isAnalyzingSeal = false;
   });
+
+  // ── SealScan AI Quality Check ──────────────────────────────────────
+
+  Future<void> _validateWithAi() async {
+    if (_croppedImage == null) return;
+
+    // Show non-dismissible CircularProgressIndicator dialog (loading state)
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: AppColors.saffron),
+      ),
+    );
+
+    setState(() => _isAnalyzingSeal = true);
+
+    // Call static API service method
+    final response = await SealScanApiService.checkSealQuality(_croppedImage!);
+
+    if (!mounted) return;
+    // Pop loading dialog
+    Navigator.of(context, rootNavigator: true).pop();
+
+    setState(() {
+      _isAnalyzingSeal = false;
+    });
+
+    if (response == null) {
+      // Error SnackBar when API response is null
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to connect to AI Quality Check API. Please try again.'),
+          backgroundColor: AppColors.errorRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Evaluate metrics != null and success/quality_passed fields
+    final bool hasMetrics = response['metrics'] != null;
+    final bool isSuccessField = response['success'] == true;
+    final bool isQualityPassedField = response['quality_passed'] == true || response['is_acceptable'] == true;
+
+    // Quality passes ONLY IF metrics is not null AND (success is true OR quality_passed is true)
+    final bool qualityPassed = hasMetrics && (isSuccessField || isQualityPassedField);
+
+    // Extract failure message from failed_metrics if metrics is null or image failed
+    String displayMessage = response['message']?.toString() ?? '';
+    final List<String> failedMessages = [];
+
+    if (response['failed_metrics'] is List) {
+      for (final item in response['failed_metrics']) {
+        if (item is Map) {
+          final msg = item['message'] ?? item['metric'];
+          if (msg != null && msg.toString().isNotEmpty) {
+            failedMessages.add(msg.toString());
+          }
+        } else if (item != null && item.toString().isNotEmpty) {
+          failedMessages.add(item.toString());
+        }
+      }
+    }
+
+    if (!qualityPassed && failedMessages.isNotEmpty) {
+      displayMessage = failedMessages.join('\n• ');
+      if (failedMessages.length > 1) {
+        displayMessage = '• $displayMessage';
+      }
+    }
+
+    if (displayMessage.isEmpty) {
+      displayMessage = qualityPassed
+          ? 'Seal image quality passed all thresholds'
+          : 'Low quality seal image. Please retake the photo.';
+    }
+
+    setState(() {
+      _aiValidated = qualityPassed;
+    });
+
+    if (qualityPassed) {
+      // Success SnackBar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.stars_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  displayMessage,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } else {
+      // Rejection AlertDialog titled "Low Quality Seal" displaying failed_metrics message
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: AppColors.errorRed),
+              SizedBox(width: 8),
+              Text(
+                'Low Quality Seal',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ],
+          ),
+          content: Text(
+            displayMessage,
+            style: const TextStyle(color: AppColors.slate, fontSize: 14),
+          ),
+          actions: [
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _retake();
+              },
+              icon: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
+              label: const Text(
+                'Retake Photo',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.errorRed,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+  }
 
   // ── Haversine ────────────────────────────────────────────────────────
 
@@ -712,6 +861,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
                     Row(
                       children: [
                         Expanded(
+                          flex: 2,
                           child: OutlinedButton(
                             style: OutlinedButton.styleFrom(
                               minimumSize: const Size.fromHeight(44),
@@ -721,7 +871,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            onPressed: _uploading ? null : _retake,
+                            onPressed: (_uploading || _isAnalyzingSeal) ? null : _retake,
                             child: const Text(
                               'Retake',
                               style: TextStyle(
@@ -732,8 +882,33 @@ class _SealCapturePageState extends State<SealCapturePage> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Expanded(
+                          flex: 3,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _aiValidated ? AppColors.success : AppColors.navy,
+                              minimumSize: const Size.fromHeight(44),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: (_uploading || _isAnalyzingSeal) ? null : _validateWithAi,
+                            icon: const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
+                            label: Text(
+                              _aiValidated ? 'AI Passed ✓' : 'Validate with AI',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 3,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.saffron,
@@ -742,7 +917,15 @@ class _SealCapturePageState extends State<SealCapturePage> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            onPressed: _uploading ? null : _submit,
+                            onPressed: (_uploading || _isAnalyzingSeal)
+                                ? null
+                                : () {
+                                    if (!_aiValidated) {
+                                      _validateWithAi();
+                                    } else {
+                                      _submit();
+                                    }
+                                  },
                             child: _uploading
                                 ? const SizedBox(
                                     height: 16,
@@ -752,9 +935,9 @@ class _SealCapturePageState extends State<SealCapturePage> {
                                       color: Colors.white,
                                     ),
                                   )
-                                : const Text(
-                                    'Use photo',
-                                    style: TextStyle(
+                                : Text(
+                                    _aiValidated ? 'Use photo' : 'Confirm',
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w800,
                                       fontSize: 12,
@@ -793,6 +976,58 @@ class _SealCapturePageState extends State<SealCapturePage> {
                   ),
                   if (_capturedTime != null) _gpsTag(_capturedTime!),
                 ],
+              ),
+            ),
+
+          if (_isAnalyzingSeal)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.85),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        height: 80,
+                        width: 80,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const CircularProgressIndicator(
+                          strokeWidth: 3,
+                          color: AppColors.saffron,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.auto_awesome, color: AppColors.saffron, size: 22),
+                          SizedBox(width: 8),
+                          Text(
+                            'Analyzing Seal Quality with SealScan AI...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Evaluating sharpness, brightness, contrast & resolution',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
         ],

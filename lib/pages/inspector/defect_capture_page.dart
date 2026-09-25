@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -9,7 +8,8 @@ import '../../utils/exif_helper.dart';
 import '../../services/socket_service.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/cloudinary_services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../data/local/shared_prefs_helper.dart';
+import 'schedule_x_notice_page.dart';
 
 class DefectCapturePage extends StatefulWidget {
   final String inspectionId;
@@ -272,45 +272,42 @@ class _DefectCapturePageState
         _capturedTime = null;
       });
     } else {
-      // Submit all defects
-      final tokenHash =
-          'LMO_${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}_${widget.inspectionId.replaceAll('-', '')}';
       final item = inspectionFor(widget.inspectionId);
-      final Map<String, dynamic> defectDataJson = {
+      final lmoId = item.assignedOfficerId ?? SocketService().officerUserId ?? 'UNKNOWN_LMO';
+      final defectRemarks = widget.failedFields.join(', ');
+      final tokenHash =
+          'REJ_${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}_${widget.inspectionId.replaceAll('-', '')}';
+
+      final rejectionDataJson = {
         'applicationId': item.applicationId,
-        'inspectorId': item.assignedOfficerId ?? SocketService().officerUserId,
+        'inspectorId': lmoId,
         'instrumentCategory': item.instrument,
         'instrumentSerialNumber': item.serial,
         'lat': _latitude ?? 0.0,
         'long': _longitude ?? 0.0,
         'sealImageUrls': _defectUrls,
+        'defectImageUrls': _defectUrls,
+        'defectReasons': widget.failedFields,
+        'remarks': 'Visual checklist failed: $defectRemarks',
         'token_hash': tokenHash,
         'status': 'FAILED_CHECKLIST',
+        'rectification_deadline': DateTime.now().add(const Duration(days: 7)).toIso8601String(),
         'timeStamp': DateTime.now().microsecondsSinceEpoch,
       };
 
-      if (ConnectivityService().isOnline.value) {
-        SocketService().emitInspectionApproved(
-          defectDataJson,
-        );
-      } else {
-        final prefs = await SharedPreferences.getInstance();
-        final pending =
-            prefs.getStringList('pending_inspections') ??
-            [];
-        final wrapper = {
-          'inspectionId': widget.inspectionId,
-          'business': item.business,
-          'payload': defectDataJson,
-        };
-        pending.add(jsonEncode(wrapper));
-        await prefs.setStringList(
-          'pending_inspections',
-          pending,
-        );
-      }
+      // Emit rejection payload to socket server
+      SocketService().emitInspectionRejected(rejectionDataJson);
 
-      markInspectionDone(widget.inspectionId);
+      // Issue Schedule X Rejection in local storage
+      final prefsHelper = SharedPrefsHelper();
+      await prefsHelper.issueScheduleXRejection(
+        inspectionId: widget.inspectionId,
+        defectReasons: widget.failedFields,
+        lmoId: lmoId,
+        remarks: 'Visual checklist failed: $defectRemarks',
+      );
+
+      markInspectionRejected(widget.inspectionId); // Keep on home with deadline banner
       setState(() => _isUploading = false);
 
       if (!mounted) return;
@@ -323,9 +320,13 @@ class _DefectCapturePageState
         ),
       );
       if (!mounted) return;
-      Navigator.of(
-        context,
-      ).popUntil((route) => route.isFirst);
+      // Navigate to Schedule X Notice instead of home
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => ScheduleXNoticePage(inspectionId: widget.inspectionId),
+        ),
+        (route) => route.isFirst,
+      );
     }
   }
 

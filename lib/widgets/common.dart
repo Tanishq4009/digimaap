@@ -380,6 +380,7 @@ class Shell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final showNav = nav && role != null;
     return Scaffold(
       extendBody: true,
       backgroundColor: backgroundColor ?? AppColors.background,
@@ -397,12 +398,15 @@ class Shell extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(child: child),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: showNav ? 90.0 : 0.0),
+              child: child,
+            ),
+          ),
         ],
       ),
-      bottomNavigationBar: (nav && role != null)
-          ? BottomNav(role: role!)
-          : null,
+      bottomNavigationBar: showNav ? BottomNav(role: role!) : null,
     );
   }
 }

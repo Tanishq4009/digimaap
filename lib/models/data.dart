@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../data/local/shared_prefs_helper.dart';
 import 'seal_evidence.dart';
 
 export 'seal_evidence.dart';
@@ -156,18 +158,6 @@ final Map<String, InspectionData> inspections = {
     distance: '2.8 km',
     priority: 'HIGH PRIORITY',
   ),
-  'LM-260112-05': const InspectionData(
-    id: 'LM-260112-05',
-    business: 'Bharat Weighing House',
-    address: 'Govindpura Industrial Area',
-    applicant: 'Neha Verma',
-    instrument: 'Platform weighing scale',
-    model: 'Avery · PC-600',
-    serial: 'AV-24-MP-1192',
-    time: '02:30 PM',
-    distance: '6.4 km',
-    priority: 'NORMAL',
-  ),
 };
 
 InspectionData inspectionFor(String? id) =>
@@ -187,13 +177,40 @@ Map<String, double>? getInspectionLocation(String id) {
 
 final ValueNotifier<List<String>> liveInspectionIds = ValueNotifier<List<String>>([]);
 
-/// IDs of inspections that have been sealed (inspection_approved emitted)
+/// IDs of inspections that have been VERIFIED (sealed) — removed from home
 final ValueNotifier<List<String>> inspectedInspectionIds =
     ValueNotifier<List<String>>([]);
 
+/// IDs of inspections that are REJECTED (Schedule X) — stay on home with deadline
+final ValueNotifier<List<String>> rejectedInspectionIds =
+    ValueNotifier<List<String>>([]);
+
+/// Call this when an inspection is VERIFIED — removes it from home queue & saves to history
 void markInspectionDone(String id) {
   if (!inspectedInspectionIds.value.contains(id)) {
     inspectedInspectionIds.value = [id, ...inspectedInspectionIds.value];
+  }
+  final item = inspectionFor(id);
+  SharedPrefsHelper().insertInspection({
+    'inspection_id': id,
+    'merchant_name': item.business,
+    'shop_address': item.address,
+    'instrument_category': item.instrument,
+    'serial_number': item.serial,
+    'accuracy_class': item.accuracyClass ?? 'Class III',
+    'status': 'VERIFIED',
+    'completed_at': DateTime.now().toIso8601String(),
+    'mpe_error_margin': item.error ?? 0.0,
+    'mpe_threshold': item.error ?? 0.5,
+    'certificate_pdf_path': '/storage/certificates/$id.pdf',
+    'photo_evidence_paths': jsonEncode([]),
+  });
+}
+
+/// Call this when an inspection is REJECTED — keeps it on home with deadline banner
+void markInspectionRejected(String id) {
+  if (!rejectedInspectionIds.value.contains(id)) {
+    rejectedInspectionIds.value = [id, ...rejectedInspectionIds.value];
   }
 }
 
