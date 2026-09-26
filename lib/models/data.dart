@@ -277,3 +277,14 @@ void saveSealEvidence(String inspectionId, SealEvidence evidence) {
 SealEvidence? getSealEvidence(String inspectionId) {
   return recordedSealEvidences[inspectionId];
 }
+
+/// In-memory storage for instrument history URLs fetched from GET `/api/instrument/history/<app-id>`
+final Map<String, List<String>> recordedHistoryUrls = {};
+
+void saveInstrumentHistoryUrls(String inspectionId, List<String> urls) {
+  recordedHistoryUrls[inspectionId] = urls;
+}
+
+List<String>? getInstrumentHistoryUrls(String inspectionId) {
+  return recordedHistoryUrls[inspectionId];
+}

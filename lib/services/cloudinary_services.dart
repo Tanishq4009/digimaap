@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../config/env_config.dart';
 
 /// Uploads seal-evidence photos to Cloudinary and returns the public
 /// `secure_url`, which is what gets sent over the socket / stored in
@@ -13,7 +14,7 @@ class CloudinaryService {
   static Future<String?> uploadImage(File imageFile) async {
     try {
       final url = Uri.parse(
-        'https://api.cloudinary.com/v1_1/$cloudName/image/upload',
+        '${EnvConfig.cloudinaryApiUrl}/$cloudName/image/upload',
       );
 
       final request = http.MultipartRequest('POST', url)

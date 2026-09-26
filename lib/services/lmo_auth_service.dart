@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:local_auth/local_auth.dart';
 
+import '../config/env_config.dart';
+
 class ApiException implements Exception {
   final String message;
   final int statusCode;
@@ -12,8 +14,7 @@ class ApiException implements Exception {
 
 class LmoAuthService {
   final LocalAuthentication auth = LocalAuthentication();
-  final String baseUrl =
-      'http://192.168.1.2:8008';
+  String get baseUrl => EnvConfig.webPortalUrl;
 
   Future<Map<String, dynamic>> login(
     String employeeId,

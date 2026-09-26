@@ -25,6 +25,8 @@ import 'pages/inspector/profile_page.dart';
 import 'pages/inspector/query_page.dart';
 import 'services/connectivity_service.dart';
 
+import 'config/env_config.dart';
+
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>();
 
@@ -46,6 +48,7 @@ inspectorNotificationsNotifier = ValueNotifier([
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await EnvConfig.load();
   await ConnectivityService().init();
   runApp(const EMaapApp());
 }

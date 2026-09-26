@@ -1,11 +1,14 @@
+import 'dart:convert';
 import 'package:digimaap/pages/shared/notifications_page.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart'
     as i_o;
 import '../routes.dart';
 import '../theme/colors.dart';
 import '../models/data.dart';
 import '../pages/inspector/inspection_detail_page.dart';
+import '../config/env_config.dart';
 
 class SocketService {
   static final SocketService _instance =
@@ -70,7 +73,7 @@ class SocketService {
     }
 
     socket = i_o.io(
-      'http://192.168.1.2:8008',
+      EnvConfig.webPortalUrl,
       i_o.OptionBuilder()
           .setTransports(['websocket'])
           .disableAutoConnect()
@@ -296,6 +299,10 @@ class SocketService {
         time: formattedTime,
         customId: appId.isNotEmpty ? appId : null,
       );
+
+      // Hit GET /api/instrument/history/<application-id> and print result in console
+      final String targetAppId = appId.isNotEmpty ? appId : appNo;
+      _fetchInstrumentHistory(targetAppId);
 
       final lat = (data['lat'] as num?)?.toDouble() ?? 0.0;
       final lng =
@@ -527,6 +534,54 @@ class SocketService {
       );
     } else {
       debugPrint('Socket is not connected yet!');
+    }
+  }
+
+  Future<List<String>> _fetchInstrumentHistory(String applicationId) async {
+    if (applicationId.isEmpty) return [];
+    try {
+      final String baseUrl = EnvConfig.webPortalUrl;
+      final Uri uri = Uri.parse('$baseUrl/api/instrument/history/$applicationId');
+
+      debugPrint('[InstrumentHistory] Fetching GET $uri ...');
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final dynamic body = jsonDecode(response.body);
+        debugPrint('[InstrumentHistory Raw Response]: $body');
+
+        List<String> urls = [];
+        if (body is Map<String, dynamic>) {
+          // Format: { "success": true, "data": [ "url1", "url2" ] }
+          final dynamic dataField = body['data'] ?? body['urls'] ?? body['history'];
+          if (dataField is List) {
+            urls = dataField.map((e) => e.toString()).toList();
+          } else if (body['url'] != null) {
+            urls = [body['url'].toString()];
+          }
+        } else if (body is List) {
+          urls = body.map((e) => e.toString()).toList();
+        }
+
+        saveInstrumentHistoryUrls(applicationId, urls);
+
+        debugPrint('====================================================');
+        debugPrint('[INSTRUMENT HISTORY URLS RECEIVED] AppID: $applicationId');
+        debugPrint('Success: ${body is Map ? body['success'] : true}');
+        debugPrint('URLs List (${urls.length}): $urls');
+        debugPrint('====================================================');
+        return urls;
+      } else {
+        debugPrint(
+          '[InstrumentHistory Error] Status: ${response.statusCode}, Body: ${response.body}',
+        );
+        return [];
+      }
+    } catch (e) {
+      debugPrint(
+        '[InstrumentHistory Exception] Failed to fetch history for $applicationId: $e',
+      );
+      return [];
     }
   }
 }

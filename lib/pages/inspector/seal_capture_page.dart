@@ -270,8 +270,21 @@ class _SealCapturePageState extends State<SealCapturePage> {
 
     setState(() => _isAnalyzingSeal = true);
 
-    // Call static API service method
+    // Call static API service method for quality check
     final response = await SealScanApiService.checkSealQuality(_croppedImage!);
+
+    // Fetch reference history URLs for similarity check
+    final item = inspectionFor(widget.inspectionId);
+    final List<String> refUrls = getInstrumentHistoryUrls(widget.inspectionId) ??
+        getInstrumentHistoryUrls(item.applicationId ?? '') ??
+        getInstrumentHistoryUrls(item.id) ??
+        [];
+
+    // Trigger similarity analysis POST /seal-scan/similarity (prints result in console)
+    SealScanApiService.checkSealSimilarity(
+      currentImageFile: _croppedImage!,
+      referenceImageUrls: refUrls,
+    );
 
     if (!mounted) return;
     // Pop loading dialog

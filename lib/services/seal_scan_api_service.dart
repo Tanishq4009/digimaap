@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../config/env_config.dart';
 
 class QualityMetricDetail {
   final String metric;
@@ -92,9 +93,8 @@ class SealScanQualityResponse {
     );
   }
 }
-
 class SealScanApiService {
-  static const String _endpointUrl = 'https://digimaap-seal-validation.onrender.com/quality-check';
+  static String get _endpointUrl => '${EnvConfig.sealValidationApiUrl}/quality-check';
 
   /// Step 1 Specification: Static method returning `Map<String, dynamic>?`
   static Future<Map<String, dynamic>?> checkSealQuality(File imageFile) async {
@@ -131,5 +131,73 @@ class SealScanApiService {
       qualityPassed: false,
       message: 'Failed to connect to AI Quality Check API. Please try again.',
     );
+  }
+
+  /// POST /seal-scan/similarity API call
+  static Future<Map<String, dynamic>?> checkSealSimilarity({
+    required File currentImageFile,
+    required List<String> referenceImageUrls,
+  }) async {
+    try {
+      // 1. Convert current image file to Base64 string
+      final bytes = await currentImageFile.readAsBytes();
+      final currentBase64 = base64Encode(bytes);
+
+      // 2. Download reference images from HTTP URLs and convert each to Base64 string
+      final List<String> referenceBase64List = [];
+      for (final url in referenceImageUrls) {
+        try {
+          if (url.trim().isEmpty) continue;
+          final res = await http
+              .get(Uri.parse(url))
+              .timeout(const Duration(seconds: 10));
+          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+            referenceBase64List.add(base64Encode(res.bodyBytes));
+          }
+        } catch (err) {
+          debugPrint(
+            '[SealSimilarity] Could not fetch reference image from $url: $err',
+          );
+        }
+      }
+
+      final payload = {
+        'current_image': currentBase64,
+        'reference_images': referenceBase64List,
+      };
+
+      final String similarityUrl =
+          '${EnvConfig.sealValidationApiUrl}/seal-scan/similarity';
+      debugPrint(
+        '[SealSimilarity] Sending POST $similarityUrl (${referenceBase64List.length} reference images)...',
+      );
+
+      final response = await http
+          .post(
+            Uri.parse(similarityUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 25));
+
+      if (response.statusCode == 200) {
+        final resMap = jsonDecode(response.body) as Map<String, dynamic>;
+        debugPrint('====================================================');
+        debugPrint('[SEAL SCAN SIMILARITY RESPONSE RECEIVED]:');
+        debugPrint(const JsonEncoder.withIndent('  ').convert(resMap));
+        debugPrint('====================================================');
+        return resMap;
+      } else {
+        debugPrint(
+          '[SealSimilarity Error] HTTP ${response.statusCode}: ${response.body}',
+        );
+        return null;
+      }
+    } catch (e) {
+      debugPrint(
+        '[SealSimilarity Exception] Error calling similarity check API: $e',
+      );
+      return null;
+    }
   }
 }

@@ -650,12 +650,14 @@ class InfoGridItem extends StatelessWidget {
   final String label;
   final String value;
   final Color? valueColor;
+  final int maxLines;
 
   const InfoGridItem({
     super.key,
     required this.label,
     required this.value,
     this.valueColor,
+    this.maxLines = 2,
   });
 
   @override
@@ -674,7 +676,7 @@ class InfoGridItem extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           value,
-          maxLines: 1,
+          maxLines: maxLines,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 12,
