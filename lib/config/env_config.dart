@@ -3,21 +3,29 @@ import 'package:flutter/services.dart';
 
 class EnvConfig {
   static String webPortalUrl = 'https://emaap-web-portal.onrender.com';
-  static String sealValidationApiUrl = 'https://digimaap-seal-validation.onrender.com';
-  static String cloudinaryApiUrl = 'https://api.cloudinary.com/v1_1';
+  static String sealValidationApiUrl =
+      'https://digimaap-seal-validation.onrender.com';
+  static String cloudinaryApiUrl =
+      'https://api.cloudinary.com/v1_1';
 
   static Future<void> load() async {
     try {
-      final String content = await rootBundle.loadString('.env');
+      final String content = await rootBundle.loadString(
+        '.env',
+      );
       final Map<String, String> env = _parseEnv(content);
 
-      if (env.containsKey('EMAAP_WEB_PORTAL_URL') && env['EMAAP_WEB_PORTAL_URL']!.isNotEmpty) {
+      if (env.containsKey('EMAAP_WEB_PORTAL_URL') &&
+          env['EMAAP_WEB_PORTAL_URL']!.isNotEmpty) {
         webPortalUrl = env['EMAAP_WEB_PORTAL_URL']!;
       }
-      if (env.containsKey('SEAL_VALIDATION_API_URL') && env['SEAL_VALIDATION_API_URL']!.isNotEmpty) {
-        sealValidationApiUrl = env['SEAL_VALIDATION_API_URL']!;
+      if (env.containsKey('SEAL_VALIDATION_API_URL') &&
+          env['SEAL_VALIDATION_API_URL']!.isNotEmpty) {
+        sealValidationApiUrl =
+            env['SEAL_VALIDATION_API_URL']!;
       }
-      if (env.containsKey('CLOUDINARY_API_URL') && env['CLOUDINARY_API_URL']!.isNotEmpty) {
+      if (env.containsKey('CLOUDINARY_API_URL') &&
+          env['CLOUDINARY_API_URL']!.isNotEmpty) {
         cloudinaryApiUrl = env['CLOUDINARY_API_URL']!;
       }
 
@@ -25,7 +33,9 @@ class EnvConfig {
         '[EnvConfig] Successfully loaded environment configuration from .env: webPortalUrl=$webPortalUrl, sealValidationApiUrl=$sealValidationApiUrl',
       );
     } catch (e) {
-      debugPrint('[EnvConfig] .env file load notice (using default fallback URLs): $e');
+      debugPrint(
+        '[EnvConfig] .env file load notice (using default fallback URLs): $e',
+      );
     }
   }
 

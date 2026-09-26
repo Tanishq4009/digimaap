@@ -14,19 +14,6 @@ import '../../services/cloudinary_services.dart';
 import '../../services/image_cropper.dart';
 import '../../services/seal_scan_api_service.dart';
 
-// ─────────────────────────────────────────────────────────────────────────
-// Smart Overlay Painter — dark mask with a real transparent cutout window.
-// The cutout MUST be drawn inside a saveLayer/restore pair: BlendMode.clear
-// only punches a hole through content painted in the SAME layer. Skip the
-// saveLayer and the "clear" either does nothing or wipes more than the
-// cutout depending on the surrounding repaint boundary.
-//
-// IMPORTANT: the rect sizes/center here (110 / 210 / 300x130, cy = 0.42*h)
-// are duplicated in ImageCropperService._cutoutRectForScreen — if you
-// change the guide here, change it there too, or the crop will drift from
-// what the user actually saw on screen.
-// ─────────────────────────────────────────────────────────────────────────
-
 class SmartOverlayPainter extends CustomPainter {
   final SealType sealType;
   SmartOverlayPainter({required this.sealType});
@@ -154,6 +141,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
   double? _latitude;
   double? _longitude;
   String? _capturedTime;
+  String? _riskClass;
 
   @override
   void initState() {
@@ -252,6 +240,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
     _capturedTime = null;
     _aiValidated = false;
     _isAnalyzingSeal = false;
+    _riskClass = null;
   });
 
   // ── SealScan AI Quality Check ──────────────────────────────────────
@@ -280,11 +269,19 @@ class _SealCapturePageState extends State<SealCapturePage> {
         getInstrumentHistoryUrls(item.id) ??
         [];
 
-    // Trigger similarity analysis POST /seal-scan/similarity (prints result in console)
-    SealScanApiService.checkSealSimilarity(
+    // Trigger similarity analysis POST /seal-scan/similarity
+    final similarityResult = await SealScanApiService.checkSealSimilarity(
       currentImageFile: _croppedImage!,
       referenceImageUrls: refUrls,
     );
+
+    String? riskClass;
+    if (similarityResult != null &&
+        similarityResult['tampering_assessment'] is Map) {
+      riskClass = similarityResult['tampering_assessment']['risk_class']
+          ?.toString()
+          .toUpperCase();
+    }
 
     if (!mounted) return;
     // Pop loading dialog
@@ -292,6 +289,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
 
     setState(() {
       _isAnalyzingSeal = false;
+      _riskClass = riskClass;
     });
 
     if (response == null) {
@@ -551,6 +549,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
         'token_hash': tokenHash,
         'status': 'APPROVED_CHECKLIST',
         'timeStamp': DateTime.now().microsecondsSinceEpoch,
+        'risk_class': _riskClass ?? 'LOW',
       };
       pending.add(jsonEncode(wrapper));
       await prefs.setStringList('pending_inspections', pending);
@@ -563,6 +562,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
         builder: (_) => _SealSubmittedSheet(
           inspectionId: widget.inspectionId,
           isOffline: true,
+          riskClass: _riskClass ?? 'LOW',
         ),
       );
       if (!mounted) return;
@@ -597,6 +597,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
       'token_hash': tokenHash,
       'status': 'APPROVED_CHECKLIST',
       'timeStamp': DateTime.now().microsecondsSinceEpoch,
+      'risk_class': _riskClass ?? 'LOW',
     };
 
     saveSealEvidence(item.id, SealEvidence.fromJson(sealDataJson));
@@ -610,6 +611,7 @@ class _SealCapturePageState extends State<SealCapturePage> {
       builder: (_) => _SealSubmittedSheet(
         inspectionId: widget.inspectionId,
         isOffline: false,
+        riskClass: _riskClass ?? 'LOW',
       ),
     );
     if (!mounted) return;
@@ -1124,14 +1126,42 @@ class _SealCapturePageState extends State<SealCapturePage> {
 class _SealSubmittedSheet extends StatelessWidget {
   final String inspectionId;
   final bool isOffline;
+  final String? riskClass;
+
   const _SealSubmittedSheet({
     required this.inspectionId,
     this.isOffline = false,
+    this.riskClass,
   });
 
   @override
   Widget build(BuildContext context) {
     final item = inspectionFor(inspectionId);
+    final String rClass = (riskClass ?? 'LOW').toUpperCase();
+
+    Color riskBgColor;
+    Color riskTextColor;
+    Color riskBorderColor;
+
+    switch (rClass) {
+      case 'HIGH':
+        riskBgColor = const Color(0xFFFEE2E2);
+        riskTextColor = const Color(0xFFDC2626);
+        riskBorderColor = const Color(0xFFFCA5A5);
+        break;
+      case 'MEDIUM':
+        riskBgColor = const Color(0xFFFEF3C7);
+        riskTextColor = const Color(0xFFD97706);
+        riskBorderColor = const Color(0xFFFCD34D);
+        break;
+      case 'LOW':
+      default:
+        riskBgColor = const Color(0xFFDCFCE7);
+        riskTextColor = const Color(0xFF16A34A);
+        riskBorderColor = const Color(0xFF86EFAC);
+        break;
+    }
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 32),
       padding: const EdgeInsets.all(24),
@@ -1171,7 +1201,41 @@ class _SealSubmittedSheet extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, color: AppColors.slate),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 10),
+          // Risk Class Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: riskBgColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: riskBorderColor, width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  rClass == 'HIGH'
+                      ? Icons.warning_amber_rounded
+                      : (rClass == 'MEDIUM'
+                          ? Icons.info_outline_rounded
+                          : Icons.verified_user_outlined),
+                  size: 14,
+                  color: riskTextColor,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'TAMPERING RISK: $rClass',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: riskTextColor,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
           Text(
             isOffline
                 ? 'Seal photo saved locally. It will upload and sync automatically once you\'re back online.'
